@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentRouter — Grafo rodoviário v1</title>
+  <style>
+    /* Standalone: fundo escuro neutro. Dentro do preview do app, o tema
+       chega via var(--foreground) etc. e estas cores servem de fallback. */
+    html, body { margin: 0; background: #16161c; }
+    #map {
+      width: 100vw;
+      height: 100vh;           /* moldura quadrada (42°×42°) */
+      font-family: system-ui, sans-serif;
+      cursor: grab;
+    }
+    #map:active { cursor: grabbing; }
+    #map svg { display: block; width: 100%; height: 100vh; }
+    #map svg text { user-select: none; pointer-events: none; }
+    #map svg circle.node { cursor: pointer; }
+    .credit {
+      position: fixed; right: 8px; bottom: 6px;
+      font: 10px system-ui, sans-serif; color: #777; pointer-events: none;
+    }
+
+    /* --- controles de zoom --- */
+    #zoomctl {
+      position: fixed; left: 12px; top: 12px;
+      display: flex; flex-direction: column; gap: 4px; z-index: 10;
+    }
+    #zoomctl button {
+      width: 30px; height: 30px; border-radius: 6px;
+      border: 1px solid var(--border, #444);
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      font: 15px/1 system-ui, sans-serif; cursor: pointer;
+    }
+    #zoomctl button:hover { filter: brightness(1.25); }
+    #zoomhint {
+      position: fixed; left: 12px; bottom: 6px;
+      font: 10px system-ui, sans-serif; color: #666; pointer-events: none;
+    }
+
+    /* --- painel de inspeção --- */
+    #panel {
+      position: fixed; right: 0; top: 0; bottom: 0; width: 380px;
+      background: var(--card, #1b1b24);
+      border-left: 1px solid var(--border, #333);
+      color: var(--foreground, #eee);
+      font: 12px/1.5 system-ui, sans-serif;
+      padding: 14px 16px; box-sizing: border-box;
+      overflow-y: auto; display: none; z-index: 20;
+    }
+    #panel.open { display: block; }
+    #panel h2 { margin: 0 0 2px; font-size: 15px; }
+    #panel .sub { color: var(--muted-foreground, #999); margin-bottom: 10px; }
+    #panel h3 {
+      margin: 14px 0 4px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--accent, #4a9eff);
+      border-bottom: 1px solid var(--border, #333); padding-bottom: 3px;
+    }
+    #panel table { width: 100%; border-collapse: collapse; }
+    #panel td { padding: 2px 4px 2px 0; vertical-align: top; }
+    #panel td.k { color: var(--muted-foreground, #999); white-space: nowrap; width: 45%; }
+    #panel td.v { font-variant-numeric: tabular-nums; }
+    #panel .close {
+      position: absolute; right: 10px; top: 10px; border: 0;
+      background: transparent; color: var(--muted-foreground, #999);
+      font-size: 16px; cursor: pointer;
+    }
+    #panel .tag {
+      display: inline-block; padding: 0 7px; border-radius: 9px;
+      border: 1px solid var(--border, #444); font-size: 10px; margin: 1px 2px 1px 0;
+      color: var(--muted-foreground, #bbb);
+    }
+    #panel .prio-critica { color: #ff6b6b; border-color: #ff6b6b; }
+    #panel .prio-alta    { color: #ffb347; border-color: #ffb347; }
+    #panel .prio-padrao  { color: #9f9; border-color: #7a7; }
+
+    /* --- barra de simulação --- */
+    #simbar {
+      position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px; z-index: 15;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 8px 16px;
+      font: 12px/1.4 system-ui, sans-serif; color: var(--foreground, #eee);
+      box-shadow: 0 4px 18px #0008;
+    }
+    #simbar .clock { font-variant-numeric: tabular-nums; min-width: 148px; }
+    #simbar button {
+      border: 1px solid var(--border, #444); border-radius: 6px;
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      font: 14px/1 system-ui, sans-serif; padding: 5px 10px; cursor: pointer;
+    }
+    #simbar button:hover { filter: brightness(1.25); }
+    #simbar select {
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      border: 1px solid var(--border, #444); border-radius: 6px; padding: 4px;
+      font: 12px system-ui, sans-serif;
+    }
+    #simbar .kpi { color: var(--muted-foreground, #bbb); }
+    #simbar .kpi b { color: var(--foreground, #eee); font-variant-numeric: tabular-nums; }
+    #simbar .kpi b.bad { color: #ff6b6b; }
+    #simbar .kpi b.good { color: #8f8; }
+
+    /* --- log de eventos --- */
+    #simlog {
+      position: fixed; left: 12px; bottom: 54px; width: 340px; max-height: 32vh;
+      overflow-y: auto; z-index: 14;
+      background: #16161cd8; border: 1px solid var(--border, #333); border-radius: 8px;
+      font: 11px/1.5 system-ui, sans-serif; color: var(--muted-foreground, #ccc);
+      padding: 6px 10px; display: none;
+    }
+    #simlog.open { display: block; }
+    #simlog .t { color: #666; margin-right: 6px; font-variant-numeric: tabular-nums; }
+    #simlog div { border-bottom: 1px dotted #ffffff14; padding: 2px 0; }
+  </style>
+</head>
+<body>
+  <div id="map" aria-label="Visualização do grafo rodoviário"></div>
+
+  <div id="zoomctl">
+    <button id="zin"  title="Aproximar">+</button>
+    <button id="zout" title="Afastar">−</button>
+    <button id="zreset" title="Restaurar (ou duplo clique)">⌂</button>
+  </div>
+  <div id="zoomhint">roda: zoom · arrastar: mover · duplo clique: reenquadrar · clique num nó: detalhes</div>
+  <div class="credit">
+    contorno: Natural Earth (domínio público) · rodovias: BIT/MTrans (2023)
+  </div>
+
+  <aside id="panel">
+    <button class="close" title="Fechar">✕</button>
+    <h2 id="p-title">—</h2>
+    <div class="sub" id="p-sub"></div>
+    <div id="p-body"></div>
+  </aside>
+
+  <div id="simlog"></div>
+  <div id="simbar">
+    <button id="playbtn" title="Iniciar/Pausar">▶</button>
+    <select id="speedsel" title="Velocidade da simulação">
+      <option value="1">1×</option>
+      <option value="60" selected>60×</option>
+      <option value="600">600×</option>
+    </select>
+    <span class="clock" id="simclock">—</span>
+    <span class="kpi">entregues <b id="k-ent">0</b></span>
+    <span class="kpi">SLA <b id="k-sla">—</b></span>
+    <span class="kpi">trânsito <b id="k-tra">0</b></span>
+    <span class="kpi">fila <b id="k-fila">0</b></span>
+    <span class="kpi">incidentes <b id="k-inc">0</b></span>
+    <span class="kpi">Δ fantasma <b id="k-ganho">—</b></span>
+    <button id="logbtn" title="Log de eventos">☰</button>
+    <button id="resetbtn" title="Reiniciar simulação">⟲</button>
+  </div>
+
+  <script src="assets/brazil_outline.js"></script>
+  <script src="graph.js"></script>
+  <script src="data.js"></script>
+  <script src="sim.js"></script>
+  <script>
+    const D = AgentRouterData, G = AgentRouterGraph;
+    const fmt = {
+      num: (v, d = 0) => v.toLocaleString("pt-BR", { maximumFractionDigits: d }),
+      ton: (v) => fmt.num(v, 1) + " t",
+      km: (v) => fmt.num(v) + " km",
+      kmh: (v) => fmt.num(v) + " km/h",
+      l: (v) => fmt.num(v, 1) + " L",
+      brl: (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }),
+      dt: (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+    };
+    const row = (k, v) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`;
+    const table = (rows) => `<table>${rows.join("")}</table>`;
+
+    const el = (id) => document.getElementById(id);
+    const panel = el("panel");
+
+    function showPanel(title, sub, bodyHtml) {
+      el("p-title").textContent = title;
+      el("p-sub").textContent = sub;
+      el("p-body").innerHTML = bodyHtml;
+      panel.classList.add("open");
+    }
+    panel.querySelector(".close").onclick = () => panel.classList.remove("open");
+
+    const PORTES = { grande: "grande", medio: "médio", pequeno: "pequeno" };
+    const STATUS_CARGA = {
+      aguardando_coleta: "aguardando coleta", coleta_em_curso: "coleta p/ BHZ",
+      no_hub: "no terminal (BHZ)", em_transito: "em trânsito",
+      entregue: "entregue", atrasada: "atrasada",
+    };
+    const STATUS_CAM = {
+      disponivel: "disponível", em_viagem: "em viagem",
+      carregando: "carregando", manutencao: "manutenção",
+    };
+
+    function showNode(nodeId) {
+      const n = G.NODES.find((x) => x.id === nodeId);
+      if (!n) return;
+      const emps = D.companiesAt(nodeId);
+      const cargas = D.cargasAt(nodeId);
+
+      const empHtml = emps.length ? emps.map((e) => `
+        <h3>${e.nome}</h3>
+        ${table([
+          row("id", e.id),
+          row("tipo", e.tipo.replaceAll("_", " ")),
+          row("porte", PORTES[e.porte]),
+          row("cargas que envia", e.cargas_tipos.map((t) => `<span class="tag">${t}</span>`).join(" ")),
+          row("volume mensal", fmt.ton(e.volume_mensal_tn) + "/mês"),
+          row("frota própria", D.trucksOf(e.id).length + " caminhão(ões)"),
+        ])}
+        ${D.trucksOf(e.id).map((t) => `
+          <div style="margin:8px 0 2px;color:var(--muted-foreground,#999)">🚚 ${t.id} · ${t.placa} · ${t.tipo}</div>
+          ${table([
+            row("velocidade média", fmt.kmh(t.vel_media_kmh)),
+            row("peso máx. de carga", fmt.ton(t.peso_max_ton)),
+            row("tara", fmt.ton(t.tara_ton)),
+            row("autonomia (tanque cheio)", fmt.km(t.autonomia_km)),
+            row("combustível atual", `${fmt.l(t.comb_atual_l)} de ${fmt.l(t.cap_comb_l)} (${Math.round((100 * t.comb_atual_l) / t.cap_comb_l)}%)`),
+            row("jornada", `${t.jornada_h} h de ${t.limite_jornada_h} h`),
+            row("status", STATUS_CAM[t.status]),
+          ])}
+        `).join("")}
+      `).join("") : "<p><em>Sem empresas registradas neste nó.</em></p>";
+
+      const cargaHtml = cargas.length ? cargas.map((c) => `
+        <div style="margin:8px 0 2px;">📦 <strong>${c.id}</strong>
+          <span class="tag prio-${c.prioridade}">${c.prioridade}</span>
+          <span class="tag">${c.classe}</span></div>
+        ${table([
+          row("expedidor", D.companyById(c.empresa_id)?.nome ?? c.empresa_id),
+          row("receptor", c.receptor_id ? (D.companyById(c.receptor_id)?.nome ?? c.receptor_id) : "—"),
+          row("peso", fmt.ton(c.peso_ton)),
+          row("rota", `${c.origem} → [BHZ] → ${c.destino}`),
+          row("criada em", fmt.dt(c.criada_em)),
+          row("prazo limite", fmt.dt(c.prazo_limite)),
+          row("valor declarado", fmt.brl(c.valor_reais)),
+          row("status", STATUS_CARGA[c.status] ?? c.status),
+        ])}
+      `).join("") : "";
+
+      showPanel(
+        n.name + (n.hub ? "  ⭑" : ""),
+        (n.hub ? "sede do centro logístico · " : n.kind === "capital" ? "capital · " : "polo regional · ") + nodeId,
+        `<h3>Empresas (${emps.length})</h3>${empHtml}
+         ${cargas ? `<h3>Cargas com origem/destino aqui (${cargas.length})</h3>${cargaHtml}` : ""}`
+      );
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const g = window.__g = G.renderGraph(document.getElementById("map"));
+      const S = window.AgentRouterSim;
+
+      // ---------------------------------------------------------------
+      // Camada de simulação: caminhões (triângulos), incidentes, rastro
+      // ---------------------------------------------------------------
+      const SVGNS = "http://www.w3.org/2000/svg";
+      const mk = (tag) => document.createElementNS(SVGNS, tag);
+      const simLayer = mk("g");                 // por cima de tudo do grafo
+      g.world.appendChild(simLayer);
+      const ghostLayer = mk("g");               // rotas fantasma (tracejado)
+      g.world.insertBefore(ghostLayer, simLayer);
+      const incLayer = mk("g");                 // incidentes (hachura vermelha)
+      g.world.insertBefore(incLayer, ghostLayer);
+
+      const truckMarkers = new Map();           // id -> {g, poly}
+      function truckMarker(t) {
+        let m = truckMarkers.get(t.id);
+        if (!m) {
+          const grp = mk("g");
+          const poly = mk("polygon");
+          poly.setAttribute("points", "0,-5 3.6,3.6 -3.6,3.6");
+          poly.setAttribute("fill", t.cargaId ? "var(--accent,#4a9eff)" : "var(--muted-foreground,#999)");
+          grp.appendChild(poly);
+          simLayer.appendChild(grp);
+          m = { grp, poly };
+          truckMarkers.set(t.id, m);
+        }
+        return m;
+      }
+      /** Posição interpolada do caminhão na perna atual (coords do mundo). */
+      function truckXY(t) {
+        if (!t.legs || t.legIdx >= t.legs.length) {
+          const n = G.NODES.find((n) => n.id === t.no_atual);
+          return n ? G.EQUIRECT.project(n.coord, g.W, g.H) : null;
+        }
+        const leg = t.legs[t.legIdx];
+        const A = G.EQUIRECT.project(g.byId[leg.a].coord, g.W, g.H);
+        const B = G.EQUIRECT.project(g.byId[leg.b].coord, g.W, g.H);
+        const f = leg.km ? Math.min(1, t.legKm / leg.km) : 0;
+        return [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f];
+      }
+      function legAngle(t) {
+        if (!t.legs || t.legIdx >= t.legs.length) return 0;
+        const leg = t.legs[t.legIdx];
+        const A = G.EQUIRECT.project(g.byId[leg.a].coord, g.W, g.H);
+        const B = G.EQUIRECT.project(g.byId[leg.b].coord, g.W, g.H);
+        return (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI + 90;
+      }
+
+      const incMarks = new Map();               // edgeId -> line vermelha
+      S.on("incidents", () => {
+        for (const [id, inc] of S.state.incidents) {
+          if (!incMarks.has(id)) {
+            const e = G.EDGES.find((x) => x.id === id);
+            const [x1, y1] = G.EQUIRECT.project(g.byId[e.a].coord, g.W, g.H);
+            const [x2, y2] = G.EQUIRECT.project(g.byId[e.b].coord, g.W, g.H);
+            const l = mk("line");
+            l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+            l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+            l.setAttribute("stroke", inc.grave ? "#ff4d4d" : "#ff9d4d");
+            l.setAttribute("stroke-width", inc.grave ? 3 : 2);
+            l.setAttribute("stroke-dasharray", "6 4");
+            incLayer.appendChild(l);
+            incMarks.set(id, l);
+          }
+        }
+        for (const [id, l] of incMarks) {
+          if (!S.state.incidents.has(id)) { l.remove(); incMarks.delete(id); }
+        }
+      });
+
+      // ---------------------------------------------------------------
+      // Bindings da barra
+      // ---------------------------------------------------------------
+      const clockEl = document.getElementById("simclock");
+      const playBtn = document.getElementById("playbtn");
+      const logBox = document.getElementById("simlog");
+      let lastLogLen = 0;
+      const T0_EPOCH = Date.parse("2026-10-24T08:00:00-03:00");
+
+      function renderSim() {
+        const k = S.kpis();
+        const d = new Date(T0_EPOCH + k.simMs);
+        clockEl.textContent = d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) +
+          (k.paused ? " · ⏸" : " · " + k.speed + "×");
+        playBtn.textContent = k.paused ? "▶" : "⏸";
+        document.getElementById("k-ent").textContent = k.entregues + (k.atrasadas ? ` (+${k.atrasadas} atrasadas)` : "");
+        const sla = document.getElementById("k-sla");
+        sla.textContent = k.sla === null ? "—" : Math.round(k.sla) + "%";
+        sla.className = k.sla !== null ? (k.sla >= 90 ? "good" : k.sla >= 70 ? "" : "bad") : "";
+        document.getElementById("k-tra").textContent = k.emTransito;
+        document.getElementById("k-fila").textContent = k.aguardando;
+        document.getElementById("k-inc").textContent = k.incidentes;
+        const gan = document.getElementById("k-ganho");
+        gan.textContent = k.ganhoFantasmaH ? (k.ganhoFantasmaH > 0 ? "+" : "") + k.ganhoFantasmaH.toFixed(1) + " h" : "—";
+        gan.className = k.ganhoFantasmaH > 0.05 ? "good" : k.ganhoFantasmaH < -0.05 ? "bad" : "";
+
+        // caminhões
+        const seen = new Set();
+        for (const t of S.state.trucks) {
+          const xy = truckXY(t);
+          if (!xy) continue;
+          seen.add(t.id);
+          const m = truckMarker(t);
+          m.grp.setAttribute("transform", `translate(${xy[0].toFixed(1)} ${xy[1].toFixed(1)}) rotate(${legAngle(t).toFixed(0)})`);
+          m.poly.setAttribute("fill", t.status === "em_viagem" ? "var(--accent,#4a9eff)"
+            : t.status === "carregando" || t.status === "descarregando" ? "#ffd24d"
+            : t.status === "descansando" ? "#b48cff" : "var(--muted-foreground,#999)");
+        }
+        for (const [id, m] of truckMarkers) {
+          if (!seen.has(id)) { m.grp.remove(); truckMarkers.delete(id); }
+        }
+
+        // log
+        if (S.state.log.length !== lastLogLen) {
+          lastLogLen = S.state.log.length;
+          logBox.innerHTML = S.state.log.map((e) => {
+            const dt = new Date(T0_EPOCH + e.t);
+            return `<div><span class="t">${dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>${e.icon} ${e.msg}</div>`;
+          }).join("");
+        }
+      }
+      S.on("tick", renderSim);
+      S.on("cargas", renderSim);
+      S.on("log", renderSim);
+      renderSim();
+
+      playBtn.onclick = () => (S.isPaused() ? S.start() : S.pause());
+      document.getElementById("logbtn").onclick = () => logBox.classList.toggle("open");
+      document.getElementById("resetbtn").onclick = () => S.reset();
+      document.getElementById("speedsel").onchange = (ev) => S.setSpeed(+ev.target.value);
+      window.addEventListener("keydown", (ev) => {
+        if (ev.key === " ") { ev.preventDefault(); playBtn.click(); }
+      });
+
+      // ---------------------------------------------------------------
+      // Interações existentes (clique no nó, zoom)
+      // ---------------------------------------------------------------
+
+      // clique em nó (graph.js já resolveu o hit-test em coords. do mundo)
+      g.svg.addEventListener("graphclick", (ev) => {
+        if (!ev.detail.nodeId) return;
+        showNode(ev.detail.nodeId);
+        // se o nó ficou oculto atrás do painel, arrasta a câmera p/ alinhá-lo
+        requestAnimationFrame(() => {
+          const dot = g.svg.querySelector(`circle.node[data-node-id="${ev.detail.nodeId}"]`);
+          const pr = panel.getBoundingClientRect();
+          const cr = dot.getBoundingClientRect();
+          if (cr.left + cr.width / 2 > pr.left) {
+            const dx = (pr.left - 60) - (cr.left + cr.width / 2); // alvo: 60px à esquerda do painel
+            g.svg.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 9, clientX: 0, clientY: 0 }));
+            g.svg.dispatchEvent(new PointerEvent("pointermove", { pointerId: 9, clientX: dx, clientY: 0 }));
+            g.svg.dispatchEvent(new PointerEvent("pointerup", { pointerId: 9, clientX: dx, clientY: 0 }));
+          }
+        });
+      });
+
+      // controles de zoom (botões disparam roda no centro do mapa; teclado: +/−/0)
+      const zAt = (dy) => {
+        const r = g.svg.getBoundingClientRect();
+        g.svg.dispatchEvent(new WheelEvent("wheel", {
+          deltaY: dy, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+          bubbles: true, cancelable: true,
+        }));
+      };
+      el("zin").onclick  = () => zAt(-100);
+      el("zout").onclick = () => zAt(100);
+      el("zreset").onclick = () => g.resetView();
+      window.addEventListener("keydown", (ev) => {
+        if (ev.key === "+" || ev.key === "=") el("zin").click();
+        if (ev.key === "-") el("zout").click();
+        if (ev.key === "0") el("zreset").click();
+        if (ev.key === "Escape") panel.classList.remove("open");
+      });
+    });
+  </script>
+</body>
+</html>

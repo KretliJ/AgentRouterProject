@@ -113,10 +113,91 @@
     #simlog.open { display: block; }
     #simlog .t { color: #666; margin-right: 6px; font-variant-numeric: tabular-nums; }
     #simlog div { border-bottom: 1px dotted #ffffff14; padding: 2px 0; }
+
+    /* --- abas de camada --- */
+    #tabs {
+      position: fixed; left: 50%; top: 10px; transform: translateX(-50%);
+      display: flex; gap: 4px; z-index: 30;
+    }
+    #tabs button {
+      border: 1px solid var(--border, #444); border-radius: 8px;
+      background: var(--card, #20202acc); color: var(--foreground, #eee);
+      font: 12px/1 system-ui, sans-serif; padding: 7px 16px; cursor: pointer;
+    }
+    #tabs button.ativa { background: var(--accent, #4a9eff); color: #fff; border-color: transparent; }
+    #vistaTerminal { display: none; }
+    #vistaTerminal.ativa { display: block; }
+    #map.escondido { display: none; }
+
+    /* --- planta do terminal --- */
+    #planta { width: 100vw; height: calc(100vh - 130px); font-family: system-ui, sans-serif; }
+    #planta svg { display: block; width: 100%; height: 100%; }
+    #planta text { user-select: none; pointer-events: none; fill: var(--foreground, #eee); }
+    #planta .dock { fill: var(--card, #1b1b24); stroke: var(--border, #555); rx: 6; }
+    #planta .dock.ocupada { stroke: var(--accent, #4a9eff); }
+    #planta .patio-vaga { fill: none; stroke: var(--border, #333); }
+    #planta .patio-vaga.ocupada { fill: #ffd24d22; stroke: #ffd24d; }
+    /* --- gantt --- */
+    #gantt-box {
+      position: fixed; right: 12px; top: 58px; width: 420px; max-height: 40vh;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px; z-index: 25;
+      font: 11px/1.4 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none; overflow: hidden;
+    }
+    #gantt-box.aberto { display: block; }
+    #gantt-box h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent, #4a9eff); }
+    #gantt-box svg { display: block; width: 100%; }
+    #decisoes.empilhado { top: calc(58px + 42vh); max-height: calc(52vh - 76px); }
+
+    /* --- painel de decisões do agente --- */
+    #decisoes {
+      position: fixed; right: 12px; top: 58px; width: 400px; max-height: calc(100vh - 150px);
+      overflow-y: auto; z-index: 26;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px;
+      font: 11px/1.5 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none;
+    }
+    #decisoes.aberto { display: block; }
+    #decisoes h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent, #4a9eff); }
+    #decisoes .dec {
+      border-left: 3px solid var(--border, #555); padding: 4px 8px; margin: 4px 0;
+      cursor: pointer; border-radius: 0 6px 6px 0; background: #ffffff06;
+    }
+    #decisoes .dec:hover { background: #ffffff12; }
+    #decisoes .dec.macro { border-left-color: var(--accent, #4a9eff); }
+    #decisoes .dec.micro { border-left-color: #ffd24d; }
+    #decisoes .dec .t { color: #777; font-variant-numeric: tabular-nums; margin-right: 6px; }
+    #decisoes .dec .tag {
+      display: inline-block; font-size: 9px; padding: 0 6px; border-radius: 8px;
+      border: 1px solid var(--border, #555); color: var(--muted-foreground, #999); margin-left: 4px;
+    }
   </style>
 </head>
 <body>
+  <div id="tabs">
+    <button id="tab-mapa" class="ativa">🗺 Mapa</button>
+    <button id="tab-terminal">🏭 Terminal</button>
+    <button id="tab-decisoes">🤖 Decisões do agente</button>
+    <button id="tab-gantt">📊 Gantt de docas</button>
+  </div>
+
   <div id="map" aria-label="Visualização do grafo rodoviário"></div>
+
+  <div id="vistaTerminal">
+    <div id="planta" aria-label="Planta do terminal logístico de BH"></div>
+  </div>
+
+  <div id="gantt-box">
+    <h4>Gantt — ocupação de docas (últimas 12 h)</h4>
+    <div id="gantt-svg"></div>
+  </div>
+
+  <div id="decisoes">
+    <h4>Decisões do agente — clique para destacar no mapa</h4>
+    <div id="decisoes-lista"></div>
+  </div>
 
   <div id="zoomctl">
     <button id="zin"  title="Aproximar">+</button>
@@ -375,7 +456,11 @@
       S.on("tick", renderSim);
       S.on("cargas", renderSim);
       S.on("log", renderSim);
-      renderSim();
+      const H_MS = 3600e3;             // 1 h em ms (escopo da página)
+      let renderSimExtra = null;       // planta/gantt/decisões (montados adiante)
+      function renderAll() { renderSim(); if (renderSimExtra) renderSimExtra(); }
+      S.on("tick", renderAll); S.on("cargas", renderAll); S.on("log", renderAll);
+      renderSim();                     // só o mapa; extras montam depois
 
       playBtn.onclick = () => (S.isPaused() ? S.start() : S.pause());
       document.getElementById("logbtn").onclick = () => logBox.classList.toggle("open");
@@ -384,6 +469,236 @@
       window.addEventListener("keydown", (ev) => {
         if (ev.key === " ") { ev.preventDefault(); playBtn.click(); }
       });
+
+      // ---------------------------------------------------------------
+      // Abas de camada (Mapa / Terminal) + painéis flutuantes
+      // ---------------------------------------------------------------
+      const tabMapa = el("tab-mapa"), tabTerm = el("tab-terminal");
+      const vistaTerm = el("vistaTerminal");
+      const boxGantt = el("gantt-box"), boxDec = el("decisoes");
+      tabMapa.onclick = () => {
+        tabMapa.classList.add("ativa"); tabTerm.classList.remove("ativa");
+        document.getElementById("map").classList.remove("escondido");
+        vistaTerm.classList.remove("ativa");
+      };
+      tabTerm.onclick = () => {
+        tabTerm.classList.add("ativa"); tabMapa.classList.remove("ativa");
+        document.getElementById("map").classList.add("escondido");
+        vistaTerm.classList.add("ativa");
+      };
+      el("tab-decisoes").onclick = () => {
+        boxDec.classList.toggle("aberto");
+        boxDec.classList.toggle("empilhado", boxGantt.classList.contains("aberto"));
+        renderDecisoes();
+      };
+      el("tab-gantt").onclick = () => {
+        boxGantt.classList.toggle("aberto");
+        boxDec.classList.toggle("empilhado", boxGantt.classList.contains("aberto") && boxDec.classList.contains("aberto"));
+        renderGantt();
+      };
+
+      // ---------------------------------------------------------------
+      // Painel de decisões: lista por camada; clique destaca rotas no mapa
+      // ---------------------------------------------------------------
+      try {
+      const hiLayer = mk("g");
+      g.world.insertBefore(hiLayer, simLayer);   // pai correto: world (simLayer é filho dele)
+      let hiEdges = new Set();
+      function limpaDestaque() {
+        hiEdges.clear();
+        hiLayer.replaceChildren();
+        const edgeColor = window.AgentRouterGraph.STYLES.edge.stroke;
+        for (const line of g.world.querySelectorAll("line")) line.setAttribute("stroke", edgeColor);
+      }
+      function destacaDecisao(dec) {
+        limpaDestaque();
+        if (!dec.edgesAtivos) return;
+        for (const eid of dec.edgesAtivos) hiEdges.add(eid);
+        const ghostSet = new Set(dec.edgesGhost || []);
+        const edgeColor = window.AgentRouterGraph.STYLES.edge.stroke;
+        for (const line of g.world.querySelectorAll("line")) {
+          const id = line.dataset.edgeId;
+          if (hiEdges.has(id)) {
+            line.setAttribute("stroke", "#7CFC00");
+            line.setAttribute("stroke-width", 3);
+            line.setAttribute("stroke-opacity", 1);
+          } else if (ghostSet.has(id)) {
+            line.setAttribute("stroke", "#ff7ad9");
+            line.setAttribute("stroke-width", 3);
+            line.setAttribute("stroke-opacity", .9);
+            line.setAttribute("stroke-dasharray", "5 4");
+          } else {
+            line.setAttribute("stroke", edgeColor); // restaura
+          }
+        }
+        // some o destaque após 6 s
+        clearTimeout(destacaDecisao._t);
+        destacaDecisao._t = setTimeout(() => {
+          hiEdges.clear();
+          hiLayer.replaceChildren();
+          const edgeColor = window.AgentRouterGraph.STYLES.edge.stroke;
+          for (const line of g.world.querySelectorAll("line")) line.setAttribute("stroke", edgeColor);
+        }, 6000);
+      }
+      function renderDecisoes() {
+        const box = document.getElementById("decisoes-lista");
+        box.innerHTML = S.state.decisions.slice(0, 40).map((d, i) => {
+          const dt = new Date(T0_EPOCH + d.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="dec ${d.camada}" data-i="${i}">
+            <span class="t">${dt}</span>${d.camada === "macro" ? "🗺" : "🏭"} ${d.msg}
+            <span class="tag">${d.camada}</span></div>`;
+        }).join("") || "<em>Sem decisões ainda — ligue a simulação.</em>";
+        box.querySelectorAll(".dec").forEach((elx) => {
+          elx.onclick = () => {
+            const d = S.state.decisions[+elx.dataset.i];
+            if (d.camada === "macro" && d.edgesAtivos) destacaDecisao(d);
+          };
+        });
+      }
+      } catch (e) { console.error("[montagem decisões]", e); window.__montErro = (window.__montErro||[]).concat("decisões: " + e.message); }
+
+      // ---------------------------------------------------------------
+      // Planta do terminal: docas R1..R3 / E1..E3 + pátio 12 vagas
+      // ---------------------------------------------------------------
+      try {
+      const planta = el("planta");
+      const NSsvg = SVGNS;
+      const psvg = mk("svg");
+      psvg.setAttribute("viewBox", "0 0 1000 520");
+      planta.appendChild(psvg);
+      function label(x, y, txt, size = 13, fill = "var(--muted-foreground,#999)") {
+        const t = mk("text");
+        t.setAttribute("x", x); t.setAttribute("y", y);
+        t.setAttribute("font-size", size); t.setAttribute("fill", fill);
+        t.textContent = txt;
+        psvg.appendChild(t);
+        return t;
+      }
+      function rect(x, y, w, h, cls, fillOverride) {
+        const r = mk("rect");
+        r.setAttribute("x", x); r.setAttribute("y", y);
+        r.setAttribute("width", w); r.setAttribute("height", h);
+        r.setAttribute("rx", 6);
+        r.setAttribute("class", cls);
+        if (fillOverride) r.setAttribute("fill", fillOverride);
+        psvg.appendChild(r);
+        return r;
+      }
+      // layout: recebimento em cima, expedição embaixo, pátio no meio
+      // (tudo à esquerda p/ não ficar sob os painéis flutuantes)
+      label(30, 40, "RECEBIMENTO (chegadas)", 13, "var(--accent,#4a9eff)");
+      label(30, 360, "EXPEDIÇÃO (saídas)", 13, "var(--accent,#4a9eff)");
+      label(30, 175, "PÁTIO (12 vagas)", 13, "#ffd24d");
+      const dockEls = { rec: [], exp: [], patio: [] };
+      for (let i = 0; i < S.N_DOCAS_REC; i++) {
+        dockEls.rec.push({ r: rect(30 + i * 170, 55, 150, 90, "dock"), t: label(40 + i * 170, 105, "R" + (i + 1), 14), s: label(40 + i * 170, 128, "livre", 11) });
+      }
+      for (let i = 0; i < S.N_DOCAS_EXP; i++) {
+        dockEls.exp.push({ r: rect(30 + i * 170, 375, 150, 90, "dock"), t: label(40 + i * 170, 425, "E" + (i + 1), 14), s: label(40 + i * 170, 448, "livre", 11) });
+      }
+      for (let i = 0; i < S.N_PATIO; i++) {
+        const col = i % 6, row = Math.floor(i / 6);
+        dockEls.patio.push({ r: rect(30 + col * 88, 190 + row * 70, 80, 62, "patio-vaga"), t: label(36 + col * 88, 226 + row * 70, "", 9) });
+      }
+      // estrada de acesso decorativa
+      const road = mk("line");
+      road.setAttribute("x1", 0); road.setAttribute("y1", 335);
+      road.setAttribute("x2", 620); road.setAttribute("y2", 335);
+      road.setAttribute("stroke", "var(--border,#333)");
+      road.setAttribute("stroke-width", 30);
+      road.setAttribute("stroke-opacity", .25);
+      psvg.insertBefore(road, psvg.firstChild);
+      label(16, 331, "BR-040 / BR-116 →", 11);
+
+      function renderPlanta() {
+        const st = S.state;
+        const prioColor = { critica: "#ff6b6b", alta: "#ffb347", padrao: "#8f8" };
+        st.terminal.docasRec.forEach((d, i) => {
+          const e = dockEls.rec[i];
+          if (d) {
+            const c = st.cargas.find((x) => x.id === d.cargaId);
+            e.r.classList.add("ocupada");
+            e.t.textContent = "R" + (i + 1) + " · " + d.cargaId;
+            e.s.textContent = c ? `${c.origem}→${c.destino} · ${Math.max(0, (d.ateMs - st.simMs) / 60000).toFixed(0)} min` : "";
+            e.s.setAttribute("fill", prioColor[c?.prioridade] || "#999");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "R" + (i + 1); e.s.textContent = "livre"; e.s.setAttribute("fill", "#777");
+          }
+        });
+        st.terminal.docasExp.forEach((d, i) => {
+          const e = dockEls.exp[i];
+          if (d) {
+            const c = st.cargas.find((x) => x.id === d.cargaId);
+            e.r.classList.add("ocupada");
+            e.t.textContent = "E" + (i + 1) + " · " + d.cargaId;
+            e.s.textContent = c ? `→ ${c.destino} · ${Math.max(0, (d.ateMs - st.simMs) / 60000).toFixed(0)} min` : "";
+            e.s.setAttribute("fill", prioColor[c?.prioridade] || "#999");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "E" + (i + 1); e.s.textContent = "livre"; e.s.setAttribute("fill", "#777");
+          }
+        });
+        // pátio: cargas no_hub sem doca
+        const patio = st.cargas.filter((c) => c.status === "no_hub").slice(0, S.N_PATIO);
+        dockEls.patio.forEach((e, i) => {
+          const c = patio[i];
+          if (c) {
+            e.r.classList.add("ocupada");
+            e.t.textContent = c.id.replace("CARGA-", "C");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "";
+          }
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // Gantt de docas (últimas 12 h)
+      // ---------------------------------------------------------------
+      } catch (e) { console.error("[montagem planta]", e); window.__montErro = (window.__montErro||[]).concat("planta: " + e.message); }
+      try {
+      const PRIO_BAR = { critica: "#ff6b6b", alta: "#ffb347", padrao: "#8f8" };
+      function renderGantt() {
+        const st = S.state;
+        const janela = 12 * H_MS;
+        const t1 = st.simMs, t0 = t1 - janela;
+        const rows = [
+          ...st.terminal.docasRec.map((_, i) => ({ key: "rec:" + i, nome: "R" + (i + 1) })),
+          ...st.terminal.docasExp.map((_, i) => ({ key: "exp:" + i, nome: "E" + (i + 1) })),
+        ];
+        const W = 396, rowH = 18, top = 18, left = 34, rightPad = 22;
+        const Hg = top + rows.length * rowH + 22;
+        const x = (ms) => left + ((ms - t0) / janela) * (W - left - rightPad);
+        let bars = "";
+        for (const gBar of st.gantt) {
+          if (gBar.ate < t0 || gBar.de > t1) continue;
+          const r = rows.findIndex((rr) => rr.key === gBar.tipo + ":" + gBar.idx);
+          if (r < 0) continue;
+          const bx = Math.max(left, x(gBar.de));
+          const bw = Math.max(2, Math.min(x(gBar.ate), W - rightPad) - bx);
+          bars += `<rect x="${bx.toFixed(1)}" y="${(top + r * rowH + 3).toFixed(1)}" width="${bw.toFixed(1)}" height="${rowH - 6}" rx="2" fill="${PRIO_BAR[gBar.prio] || "#8f8"}" opacity=".85"><title>${gBar.cargaId} (${gBar.prio})</title></rect>`;
+        }
+        let axis = "", grid = "";
+        for (let hh = 0; hh <= 12; hh += 2) {
+          const gx = x(t0 + hh * H_MS);
+          grid += `<line x1="${gx}" y1="${top}" x2="${gx}" y2="${top + rows.length * rowH}" stroke="#ffffff14"/>`;
+          axis += `<text x="${gx}" y="${Hg - 6}" font-size="9" fill="#777" text-anchor="middle">-${12 - hh}h</text>`;
+        }
+        let labs = "";
+        rows.forEach((rr, i) => { labs += `<text x="4" y="${top + i * rowH + 13}" font-size="10" fill="#bbb">${rr.nome}</text>`; });
+        el("gantt-svg").innerHTML =
+          `<svg viewBox="0 0 ${W} ${Hg}">${grid}${bars}${labs}${axis}</svg>`;
+      }
+
+      // render acoplado ao tick — engata planta/gantt/decisões no loop
+      } catch (e) { console.error("[montagem gantt]", e); window.__montErro = (window.__montErro||[]).concat("gantt: " + e.message); }
+      renderSimExtra = function () {
+        renderPlanta();
+        if (boxDec.classList.contains("aberto")) renderDecisoes();
+        if (boxGantt.classList.contains("aberto")) renderGantt();
+      };
+      renderSimExtra();
 
       // ---------------------------------------------------------------
       // Interações existentes (clique no nó, zoom)

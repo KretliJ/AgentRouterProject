@@ -55,6 +55,9 @@
   const TEMPO_REABAST = 0.5 * H;      // 30 min no posto
   const TEMPO_DESCANSO = 8 * H;       // descanso após fechar jornada
   const LIMITE_JORNADA_H = 10;
+  const N_DOCAS_REC = 3;              // docas de recebimento no terminal de BH
+  const N_DOCAS_EXP = 3;              // docas de expedição no terminal de BH
+  const N_PATIO = 12;                 // vagas de pátio (capacidade finita)
   const PENALIDADE_INC = 2.5;         // × tempo na aresta com incidente
   const PENALIDADE_INC_GRAVE = 6;     // interdição parcial severa
   const SLA_H = { critica: 24, alta: 48, padrao: 72 };
@@ -106,6 +109,12 @@
     return {
       simMs: 0, speed: 60, paused: true,
       trucks, cargas,
+      terminal: {
+        docasRec: Array(N_DOCAS_REC).fill(null),  // slot: {cargaId, ateMs}
+        docasExp: Array(N_DOCAS_EXP).fill(null),
+      },
+      decisions: [],                 // feed do agente {t, camada, msg, edgesAtivos?, edgesGhost?}
+      gantt: [],                     // ocupação de docas {doca, cargaId, prio, de, ate}
       incidents: new Map(),          // edgeId -> {ateMs, penalty, grave, br}
       incHistory: [],                // {edgeId, de, ate, penalty} p/ replay fantasma
       nextCargaMs: 2 * H,
@@ -279,6 +288,42 @@
   // Pipeline hub-and-spoke: 1º caminhão coleta na origem e leva ao terminal
   // de BH (transbordo); 2º caminhão leva de BH ao destino final.
   const TRANSBORDO_MS = 1.5 * H;   // manuseio no terminal (decisão micro futura)
+  const TEMPO_DOCA_REC = 0.75 * H; // tempo de doca no recebimento
+  // (expedição usa TEMPO_COLETA como tempo de doca/carregamento)
+
+  /** Tenta alocar doca de recebimento p/ carga recém-chegada ao hub.
+   *  DECISÃO MICRO do agente: doca específica vs pátio. */
+  function alocaDocaRec(c) {
+    const dock = state.terminal.docasRec.findIndex((d) => !d);
+    if (dock >= 0) {
+      state.terminal.docasRec[dock] = { cargaId: c.id, ateMs: state.simMs + TEMPO_DOCA_REC };
+      state.gantt.push({ tipo: "rec", idx: dock, cargaId: c.id, prio: c.prioridade, de: state.simMs, ate: state.simMs + TEMPO_DOCA_REC });
+      if (state.gantt.length > 400) state.gantt.splice(0, state.gantt.length - 400);
+      c.status = "recebendo";
+      c.docaRec = dock;
+      state.decisions.unshift({ t: state.simMs, camada: "micro", msg: `${c.id} (${c.prioridade}) alocada na doca de recebimento R${dock + 1}`, cargaId: c.id });
+    } else {
+      c.status = "no_hub";           // fila informal no pátio
+      c.hubDesdeMs = state.simMs;
+      const ocup = state.cargas.filter((x) => x.status === "no_hub" || x.status === "recebendo").length;
+      state.decisions.unshift({ t: state.simMs, camada: "micro", msg: `${c.id} sem doca livre — aguarda no pátio (${ocup}/${N_PATIO} vagas)`, cargaId: c.id });
+    }
+    if (state.decisions.length > 80) state.decisions.pop();
+  }
+
+  /** Libera docas cujo tempo acabou; carga sai da doca pronta p/ expedição. */
+  function processaDocas() {
+    for (const [i, d] of state.terminal.docasRec.entries()) {
+      if (d && state.simMs >= d.ateMs) {
+        state.terminal.docasRec[i] = null;
+        const c = state.cargas.find((x) => x.id === d.cargaId);
+        if (c) { c.status = "no_hub"; c.hubDesdeMs = state.simMs; }
+      }
+    }
+    for (const [i, d] of state.terminal.docasExp.entries()) {
+      if (d && state.simMs >= d.ateMs) state.terminal.docasExp[i] = null;
+    }
+  }
 
   function despacha() {
     const pend = state.cargas
@@ -297,6 +342,8 @@
       if (!cand) continue;
       const legs = planoAtivo(cand, de, para);
       if (!legs || !legs.length) continue;   // de===para (ex.: carga BHZ→BHZ): aguarda
+      const kmAtivo = legs.reduce((s, l) => s + l.km, 0);
+      const tAtivo = kmAtivo / cand.vel_media_kmh;
       // contrafactual na 1ª perna: rota fantasma COMPLETA origem→[BHZ]→destino
       const ghost = c.fase === "coleta" ? planoFantasma(cand, c.origem, c.hub, c.destino) : null;
       cand.status = "carregando";
@@ -316,7 +363,25 @@
         c.ghostConsL = cand.consumo_km_l;
         c.ghostComb = cand.comb_atual_l;
         c.ghostJornada = cand.jornada_h;
+        c.ghostKm = ghost.km;
       }
+      // ── decisão do agente registrada (visível nas duas camadas) ──
+      const incEdges = legs.filter((l) => state.incidents.has(l.edgeId)).length;
+      const desvioInc = incEdges > 0;
+      const maisCurta = ghost && ghost.km < kmAtivo - 1; // ativa aceitou km a mais
+      const motivo = desvioInc
+        ? (maisCurta ? `desvio: ${incEdges} incidente(s) na rota curta (aceita +${Math.round(kmAtivo - ghost.km)} km)`
+                     : `incidente(s) na rota, menor tempo mesmo assim`)
+        : (maisCurta ? `rota mais longa por melhor condição (${Math.round(kmAtivo - ghost.km)} km a mais)`
+                     : "menor tempo; sem incidentes na rota");
+      state.decisions.unshift({
+        t: state.simMs, camada: "macro",
+        msg: `${c.id} (${c.prioridade}) ${de}→${para} via ${cand.id}: ${motivo}`,
+        edgesAtivos: legs.map((l) => l.edgeId),
+        edgesGhost: ghost ? ghost.legs.map((l) => l.edgeId) : null,
+        cargaId: c.id, truckId: cand.id,
+      });
+      if (state.decisions.length > 80) state.decisions.pop();
       logEv("🚚", `${cand.id} leva ${c.id} ${de}→${para}${segundaPerna ? " (entrega final)" : " (coleta p/ BHZ)"}`);
       emit("cargas");
     }
@@ -401,11 +466,10 @@
         else {
           const c = state.cargas.find((x) => x.id === t.cargaId);
           if (c && t.no_atual === c.hub && c.fase === "coleta") {
-            // transbordo no terminal de BH: carga espera, caminhão libera
-            c.status = "no_hub";
-            c.hubDesdeMs = state.simMs;
+            // transbordo no terminal de BH: doca/pátio decidido pelo agente micro
             t.cargaId = null; t.status = "disponivel"; t.path = null; t.legs = null;
-            logEv("🏭", `${c.id} no terminal de BH (transbordo ${c.origem}→${c.destino})`);
+            alocaDocaRec(c);
+            logEv("🏭", `${c.id} chegou ao terminal de BH (${c.origem}→${c.destino})`);
           } else {
             t.status = "descarregando";
             t.until = state.simMs + TEMPO_DESCARGA;
@@ -466,6 +530,7 @@
   // --- tick & relógio -------------------------------------------------------------
   function tick(dtMs) {
     state.simMs += dtMs;
+    processaDocas();
     expireIncidents();
     maybeIncident();
     maybeSpawnCarga();
@@ -505,5 +570,6 @@
     start, pause, setSpeed, reset, tick, fastForward, on, kpis,
     edgeKm, edgeMid,
     isPaused: () => state.paused,
+    N_DOCAS_REC, N_DOCAS_EXP, N_PATIO,
   };
 })();

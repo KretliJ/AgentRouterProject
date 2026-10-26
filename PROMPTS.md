@@ -74,3 +74,11 @@ Registro cronológico dos prompts do usuário (Jonas) durante a fase de modelage
 
 **Resposta (resumo):** modelo hub-and-spoke: toda carga circula origem → [BHZ] → destino, com transbordo de 1,5 h no terminal. Criado `DESTINO_POR_CLASSE` (classe → funções receptoras: granel→siderurgia/agro/frigorífico, perigosa→química, refrigerada→frigorífico/farma, etc.) e `sortearReceptor()`, que sorteia a empresa receptora pela função, fora da cidade de origem. Estados da carga: aguardando_coleta → coleta_em_curso → no_hub → 2ª perna → entregue/atrasada. Fantasma também roda pela topologia (paga o mesmo transbordo). A fila por caminhão no hub (5,7–9,3 h de média) foi separada como KPI de capacidade (`filaHubMediaH`), fora do delta de rota (que caiu de −6/−11 h espúrios para −0,7/−1,6 h honestos). Seed de 15 cargas normalizado para o novo pipeline. Bugs pegos: perna vazia em origem==destino (BHZ→BHZ) e seed antigo violando a regra do hub. Documentação: MODELAGEM §9.4.
 
+---
+
+## 10 — Segunda visualização (terminal) e visibilidade do agente
+
+> **Prompt:** "precisamos da segunda visualização (do centro logístico) e de melhorar a visão do agente tomando as decisões nas duas camadas"
+
+**Resposta (resumo):** terminal físico no motor (3 docas de recebimento + 3 de expedição + pátio de 12 vagas; chegada ao hub disputa doca, sem doca = pátio). Nova aba **Terminal** com a planta do centro logístico (docas R1-R3/E1-E3, pátio com cargas visíveis, estrada de acesso) e **Gantt de docas** (barras por prioridade, janela de 12 h). Painel **Decisões do agente** registra cada escolha nas duas camadas — macro (rota + motivo: desvio por incidente, rota mais longa por condição, menor tempo) e micro (alocação de doca / espera no pátio) — e clicar numa decisão macro destaca no mapa a rota ativa (verde) contra a fantasma (rosa tracejado). 63 decisões em 96 h (42 macro + 21 micro). Bug-raiz da rodada: `insertBefore` com pai errado abortava silenciosamente a montagem abaixo dos handlers (sintoma mascarado como TDZ); mais layout da planta (pátio fora do alcance do Gantt) e empilhamento dos painéis. Documentação: MODELAGEM §9.4.
+

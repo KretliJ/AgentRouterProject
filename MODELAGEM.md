@@ -265,7 +265,14 @@ Antecipa a semântica do núcleo Java (F1+) em JS client-side. Componentes:
 
 Verificação (3 execuções independentes de 96 h simuladas): 21–23 entregas, SLA 67–87%, hard constraints respeitadas em todas (jornada ≤10 h, combustível ≥0), delta heterogêneo e honesto (−1,6 a +0,7 h médios; ativa ganha quando incidentes atingem a rota curta). Simplificações declaradas: sem terminal físico (docas = tempos fixos), fantasma por despacho (não replay pareado completo), reabastecimento em qualquer cidade-nó.
 
-### 9.4 Fluxo hub-and-spoke com destino funcional (implementado)
+### 9.4 Segunda visualização (Terminal) e visibilidade do agente (implementado)
+
+- **Aba Terminal** (plant + Gantt): planta esquemática do centro logístico de BH — docas de recebimento R1–R3, pátio com 12 vagas (cargas em espera visíveis com id), estrada de acesso, docas de expedição E1–E3; **Gantt de docas** (janela de 12 h, barras coloridas por prioridade, tooltip por carga).
+- **Terminal físico no motor** (para haver o que visualizar): 3 docas de recebimento (45 min) + 3 de expedição + 12 vagas de pátio; chegada ao hub disputa doca — sem doca livre, a carga vai ao pátio (`no_hub`).
+- **Decisões do agente visíveis nas duas camadas**: feed `🤖 Decisões` com cada escolha — **macro** (rota escolhida, com motivo: desvio por incidente / rota mais longa por condição / menor tempo, e comparação implícita com a fantasma) e **micro** (alocação de doca / espera no pátio). Clicar numa decisão macro **destaca no mapa** a rota ativa (verde) sobreposta à rota fantasma (rosa tracejado).
+- Verificação real: 63 decisões em 96 h (42 macro + 21 micro), 6 docas montadas, 12 vagas de pátio, barras de Gantt no DOM, destaque verde/rosa no mapa funcionando. Bugs pegos: `insertBefore` com pai errado (hiLayer abortava a montagem de tudo abaixo — sintoma mascarado como TDZ de `PRIO_BAR`/`hiEdges`), TDZ por ordem de execução no script inline (render inicial isolado da montagem), `#map` com `visibility:hidden` empurrando a planta para fora da tela (`display:none`), pátio sob o Gantt (layout compactado à esquerda).
+
+### 9.5 Fluxo hub-and-spoke com destino funcional (implementado)
 
 Decisão do usuário: **toda carga passa pelo terminal de BH**, e o destino de cada carga é uma **empresa receptora** cuja FUNÇÃO absorve a classe da carga — não uma cidade sorteada.
 

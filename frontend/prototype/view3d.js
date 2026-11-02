@@ -1,0 +1,404 @@
+// ============================================================================
+// AgentRouter — Renderer 3D do mapa (Three.js r128, local)
+// ============================================================================
+// Substitui o desenho SVG do grafo mantendo os MESMOS dados (NODES/EDGES,
+// projeção equiretangular do graph.js) e o MESMO estado do sim.js.
+//
+// Decisões:
+//  - Corpo do caminhão = wireframe do caminhao.glb (frente +X, chão Y=0),
+//    extruído via LineSegments — cor segue a MESMA lógica dos triângulos SVG.
+//  - Câmera órbita: botão ESQUERDO = orbitar; botão do MEIO/SHIFT+esq = pan;
+//    roda = zoom. Duplo clique = reenquadrar.
+//  - Hit-test de nó: clique curto (sem arrasto) resolve o nó mais próximo.
+//
+// Coordenadas do mundo: x = leste (+lon), z = sul (+lat) — "flat map".
+// Escala: 1 grau = 100 unidades.
+
+(function () {
+  "use strict";
+
+  const G = window.AgentRouterGraph;
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  /** Mesma matemática do graph.js, agora para o plano XZ. */
+  const P = (coord, W, H) => G.EQUIRECT.project(coord, W, H); // [px, px] 0..W/H
+  const toWorld = (px, py, W, H) => {
+    // centraliza o plano na origem: mundo X = px - W/2, Z = py - H/2
+    return [px - W / 2, py - H / 2];
+  };
+
+  const COLORS = {
+    bg: 0x101016,
+    outline: 0xc9d1e0,
+    edge: 0x4a9eff,
+    nodeCap: 0xeeeeee,
+    nodeReg: 0x999999,
+    hub: 0x4a9eff,
+    label: "#eee",
+    labelDim: "#999",
+    // estados de caminhão — MESMOS das cores dos triângulos SVG
+    truckViajando: 0x4a9eff,
+    truckManuseio: 0xffd24d,
+    truckDescanso: 0xb48cff,
+    truckOcioso: 0x999999,
+    incComum: 0xff9d4d,
+    incGrave: 0xff4d4d,
+    rotaAtiva: 0x7cfc00,
+    rotaFantasma: 0xff7ad9,
+  };
+
+  function init(container, { onClickNode } = {}) {
+    const W = window.AgentRouterGraph ? 42 : 42; // graus (moldura fixa)
+    const DEG = 100;                              // 1° = 100 unidades
+    const WORLD_W = 42 * DEG, WORLD_H = 42 * DEG;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(COLORS.bg);
+
+    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 20000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    // --- luzes (wireframe não usa, mas os modelos GLB usarão no futuro) -----
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.5);
+    dir.position.set(300, 600, 200);
+    scene.add(dir);
+
+    // --- grupo raiz do "mundo" (pan/rotate atuam na câmera, não aqui) -------
+    const world = new THREE.Group();
+    scene.add(world);
+
+    // --- grade de chão: vende a perspectiva (linhas convergem) ---------------
+    const gridMat = new THREE.LineBasicMaterial({ color: 0x2a2f3a, transparent: true, opacity: 0.55 });
+    const gridGroup = new THREE.Group();
+    for (let gx = -2100; gx <= 2100; gx += 300) {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(gx, -1, -2100), new THREE.Vector3(gx, -1, 4200)]);
+      gridGroup.add(new THREE.Line(g, gridMat));
+    }
+    for (let gz = -2100; gz <= 4200; gz += 300) {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-2100, -1, gz), new THREE.Vector3(2100, -1, gz)]);
+      gridGroup.add(new THREE.Line(g, gridMat));
+    }
+    world.add(gridGroup);
+
+    // --- contorno do Brasil -------------------------------------------------
+    if (typeof BRAZIL_OUTLINE !== "undefined") {
+      const pts = [];
+      for (const [lon, lat] of BRAZIL_OUTLINE) {
+        const [px, py] = P([lon, lat], WORLD_W, WORLD_H);
+        const [x, z] = toWorld(px, py, WORLD_W, WORLD_H);
+        pts.push(new THREE.Vector3(x, 0, z));
+      }
+      pts.push(pts[0].clone());
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      world.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: COLORS.outline, transparent: true, opacity: 0.9 })));
+    }
+
+    // --- arestas ------------------------------------------------------------
+    const byId = Object.fromEntries(G.NODES.map((n) => [n.id, n]));
+    const nodePos = new Map();
+    for (const n of G.NODES) {
+      const [px, py] = P(n.coord, WORLD_W, WORLD_H);
+      const [x, z] = toWorld(px, py, WORLD_W, WORLD_H);
+      nodePos.set(n.id, [x, z]);
+    }
+    const edgeLines = new Map(); // edgeId -> Line
+    const edgeMat = new THREE.LineBasicMaterial({ color: COLORS.edge, transparent: true, opacity: 0.75 });
+    const edgeGeoCache = new Map();
+    for (const e of G.EDGES) {
+      const a = nodePos.get(e.a), b = nodePos.get(e.b);
+      if (!a || !b) continue;
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(a[0], 0, a[1]),
+        new THREE.Vector3(b[0], 0, b[1]),
+      ]);
+      const line = new THREE.Line(geo, edgeMat);
+      line.userData.edgeId = e.id;
+      world.add(line);
+      edgeLines.set(e.id, line);
+    }
+
+    // --- nós: discos + pino -------------------------------------------------
+    const nodeDots = new Map();
+    const nodeGeo = new THREE.CylinderGeometry(9, 9, 2, 20);
+    for (const n of G.NODES) {
+      const [x, z] = nodePos.get(n.id);
+      const isHub = n.hub, isCap = n.kind === "capital";
+      const mat = new THREE.MeshBasicMaterial({ color: isHub ? COLORS.hub : isCap ? COLORS.nodeCap : COLORS.nodeReg });
+      const dot = new THREE.Mesh(nodeGeo, mat);
+      dot.position.set(x, 1, z);
+      if (isHub) dot.scale.set(1.5, 1.5, 1.5);
+      world.add(dot);
+      nodeDots.set(n.id, dot);
+    }
+
+    // --- rótulos (sprites de canvas — legíveis em qualquer ângulo) ----------
+    const labelSprites = [];
+    function makeLabel(text, x, z, { size = 42, color = COLORS.label, weight = 400, y = 26, scale = 1 } = {}) {
+      const pad = 12;
+      const cv = document.createElement("canvas");
+      const ctx = cv.getContext("2d");
+      const fontPx = 44;
+      ctx.font = `${weight} ${fontPx}px system-ui, sans-serif`;
+      const w = ctx.measureText(text).width + pad * 2;
+      cv.width = Math.ceil(w);
+      cv.height = Math.ceil(fontPx * 1.5);
+      const ctx2 = cv.getContext("2d");
+      ctx2.font = `${weight} ${fontPx}px system-ui, sans-serif`;
+      ctx2.lineWidth = 8;
+      ctx2.strokeStyle = "rgba(10,12,18,.9)";   // halo escuro p/ contraste
+      ctx2.strokeText(text, pad, cv.height / 2);
+      ctx2.fillStyle = color;
+      ctx2.textBaseline = "middle";
+      ctx2.fillText(text, pad, cv.height / 2);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.minFilter = THREE.LinearFilter;
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      const spr = new THREE.Sprite(mat);
+      spr.scale.set(cv.width / 22, cv.height / 22, 1);  // ~44px na cena
+      spr.position.set(x, y, z);
+      world.add(spr);
+      labelSprites.push(spr);
+      return spr;
+    }
+    for (const n of G.NODES) {
+      const [x, z] = nodePos.get(n.id);
+      makeLabel(n.name, x + 16, z, {
+        size: n.hub || n.kind === "capital" ? 46 : 38,
+        weight: n.hub || n.kind === "capital" ? 600 : 400,
+        y: 30,
+        scale: 1,
+      });
+    }
+
+    // --- incidentes: arestas tracejadas coloridas ----------------------------
+    // tracejado em Line não é nativo; usamos LineDashedMaterial
+    const incLines = new Map(); // edgeId -> Line
+    function refreshIncidents(incidents) {
+      for (const [id, line] of incLines) { world.remove(line); }
+      incLines.clear();
+      for (const [edgeId, inc] of incidents) {
+        const e = G.EDGES.find((x) => x.id === edgeId);
+        if (!e) continue;
+        const a = nodePos.get(e.a), b = nodePos.get(e.b);
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(a[0], 4, a[1]),
+          new THREE.Vector3(b[0], 4, b[1]),
+        ]);
+        const mat = new THREE.LineDashedMaterial({
+          color: inc.grave ? COLORS.incGrave : COLORS.incComum,
+          dashSize: 12, gapSize: 8, transparent: true, opacity: 0.95,
+        });
+        const line = new THREE.Line(geo, mat);
+        line.computeLineDistances();
+        world.add(line);
+        incLines.set(edgeId, line);
+      }
+    }
+
+    // --- rotas destacadas (decisão) -----------------------------------------
+    const routeGroup = new THREE.Group();
+    world.add(routeGroup);
+    function showRoutes(edgesAtivos, edgesGhost) {
+      clearRoutes();
+      const draw = (ids, color, dashed, y) => {
+        for (const id of ids || []) {
+          const e = G.EDGES.find((x) => x.id === id);
+          if (!e) continue;
+          const a = nodePos.get(e.a), b = nodePos.get(e.b);
+          const geo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(a[0], y, a[1]),
+            new THREE.Vector3(b[0], y, b[1]),
+          ]);
+          const mat = dashed
+            ? new THREE.LineDashedMaterial({ color, dashSize: 14, gapSize: 10 })
+            : new THREE.LineBasicMaterial({ color });
+          const line = new THREE.Line(geo, mat);
+          if (dashed) line.computeLineDistances();
+          routeGroup.add(line);
+        }
+      };
+      draw(edgesGhost, COLORS.rotaFantasma, true, 8);
+      draw(edgesAtivos, COLORS.rotaAtiva, false, 8);
+    }
+    function clearRoutes() { routeGroup.clear(); }
+
+    // --- caminhões: wireframe do GLB ----------------------------------------
+    const truckGroup = new THREE.Group();
+    world.add(truckGroup);
+    const WF = window.CAMINHAO_WIREFRAME || [];
+    // centraliza o pivô: bbox X [-87.6,101.3] → centro ~6.9; Z ±34 → centro ~1.2
+    const CX = -94.45 / 2, CY = 0, CZ = -69.3 / 2; // subtrai centros (aprox)
+    const cx = (87.6 + 101.3) / 2, cz = (33.4 + 35.9) / 2;
+    // escala: no enquadramento nacional (raio ~4800), um caminhão precisa de
+    // ~90 unidades de comprimento para ficar visível ao lado dos nós (r=9)
+    const truckScale = 90 / 189;
+    const truckMatByState = {
+      em_viagem: new THREE.LineBasicMaterial({ color: COLORS.truckViajando }),
+      carregando: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
+      descarregando: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
+      reabastecendo: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
+      descansando: new THREE.LineBasicMaterial({ color: COLORS.truckDescanso }),
+      disponivel: new THREE.LineBasicMaterial({ color: COLORS.truckOcioso }),
+    };
+    const truckProto = new THREE.Group();
+    for (const [x1, y1, z1, x2, y2, z2] of WF) {
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3((x1 - cx) * truckScale, (y1) * truckScale, (z1 - cz) * truckScale),
+        new THREE.Vector3((x2 - cx) * truckScale, (y2) * truckScale, (z2 - cz) * truckScale),
+      ]);
+      truckProto.add(new THREE.LineSegments(geo, truckMatByState.em_viagem));
+    }
+    // espelhos por estado: cada caminhão clona o proto com seu material
+    function makeTruck() {
+      const g = new THREE.Group();
+      for (const seg of truckProto.children) {
+        const l = new THREE.LineSegments(seg.geometry, truckMatByState.em_viagem);
+        g.add(l);
+      }
+      truckGroup.add(g);
+      return g;
+    }
+
+    function setState(truckObj, status) {
+      const mat = truckMatByState[status] || truckMatByState.disponivel;
+      for (const seg of truckObj.children) seg.material = mat;
+    }
+
+    // --- câmera orbital manual (botão esquerdo = orbitar; shift/esq ou meio = pan; roda = zoom)
+    // target = centroide dos nós (o grafo vive no Sudeste do quadro)
+    const centroid = (() => {
+      let sx = 0, sz = 0;
+      for (const [x, z] of nodePos.values()) { sx += x; sz += z; }
+      return [sx / nodePos.size, sz / nodePos.size];
+    })();
+    // target calibrado por iteração: centro do BBOX do contorno na tela
+    // (982, 0, 671) — o centro geométrico (0,1900) desloca o mapa p/ o canto
+    const target = new THREE.Vector3(982, 0, 671);
+    let theta = Math.PI * 0.25;                     // azimute
+    let phi = 0.8;                                  // polar do TOPO (~36° do horizonte): inclinado e legível
+    let radius = 2500;                              // Brasil ocupa ~51% da largura
+    const MIN_PHI = 0.25, MAX_PHI = 1.2;
+    const MIN_R = 150, MAX_R = 12000;
+
+    function updateCamera() {
+      camera.position.set(
+        target.x + radius * Math.sin(phi) * Math.sin(theta),
+        target.y + radius * Math.cos(phi),
+        target.z + radius * Math.sin(phi) * Math.cos(theta)
+      );
+      camera.lookAt(target);
+    }
+    updateCamera();
+
+    let drag = null;
+    const dom = renderer.domElement;
+    dom.addEventListener("pointerdown", (ev) => {
+      drag = {
+        id: ev.pointerId, x: ev.clientX, y: ev.clientY,
+        mode: (ev.button === 1 || ev.shiftKey) ? "pan" : "orbit",
+        moved: false,
+      };
+      dom.setPointerCapture(ev.pointerId);
+    });
+    dom.addEventListener("pointermove", (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      if (drag.mode === "orbit") {
+        theta -= dx * 0.005;
+        phi = Math.max(MIN_PHI, Math.min(MAX_PHI, phi - dy * 0.004));
+      } else { // pan no plano do mundo
+        const panScale = radius * 0.0016;
+        // move o target no plano XZ relativo à orientação da câmera
+        const sin = Math.sin(theta), cos = Math.cos(theta);
+        target.x -= (dx * cos - dy * sin) * panScale;
+        target.z -= (dx * sin + dy * cos) * panScale;
+      }
+      drag.x = ev.clientX; drag.y = ev.clientY;
+      updateCamera();
+    });
+    dom.addEventListener("pointerup", (ev) => {
+      if (drag && !drag.moved && onClickNode) {
+        // clique curto → nó mais próximo por raio na tela
+        const rect = dom.getBoundingClientRect();
+        const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+        // projeta cada nó
+        let best = null, bestD = 28;
+        const v = new THREE.Vector3();
+        for (const [id, dot] of nodeDots) {
+          v.copy(dot.position).project(camera);
+          const sx = (v.x * 0.5 + 0.5) * rect.width;
+          const sy = (-v.y * 0.5 + 0.5) * rect.height;
+          const d = Math.hypot(sx - mx, sy - my);
+          if (d < bestD) { bestD = d; best = id; }
+        }
+        if (best) onClickNode(best);
+      }
+      try { dom.releasePointerCapture(ev.pointerId); } catch (_) {}
+      drag = null;
+    });
+    dom.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      radius = Math.max(MIN_R, Math.min(MAX_R, radius * (ev.deltaY < 0 ? 0.88 : 1 / 0.88)));
+      updateCamera();
+    }, { passive: false });
+    dom.addEventListener("dblclick", () => {
+      target.set(982, 0, 671); theta = Math.PI * 0.25; phi = 0.8; radius = 2500;
+      updateCamera();
+    });
+
+    // --- loop de render ------------------------------------------------------
+    let running = true;
+    function frame() {
+      if (!running) return;
+      requestAnimationFrame(frame);
+      renderer.render(scene, camera);
+    }
+    frame();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    /** Atualiza caminhões a partir do estado do sim (mesmos dados do SVG). */
+    function updateTrucks(trucks) {
+      const seen = new Set();
+      for (const t of trucks) {
+        // posição: mesma interpolação do truckXY do index.html
+        const xy = window.__truckXY ? window.__truckXY(t) : null;
+        if (!xy) continue;
+        seen.add(t.id);
+        let obj = t._3d;
+        if (!obj) { obj = t._3d = makeTruck(); }
+        const [wx, wz] = toWorld(xy[0], xy[1], WORLD_W, WORLD_H);
+        obj.position.set(wx, 2, wz);
+        const ang = window.__truckAngle ? window.__truckAngle(t) : 0;
+        // triângulo SVG aponta "para cima" (0° = -Y da tela). Mundo: 0° = -Z (norte).
+        // wireframe: frente em +X. Rotação em Y do mundo = -(ang tela - 90°)
+        obj.rotation.y = -((ang - 90) * Math.PI / 180) + Math.PI;
+        setState(obj, t.status);
+      }
+      for (const t of trucks) {
+        if (!seen.has(t.id) && t._3d) { truckGroup.remove(t._3d); delete t._3d; }
+      }
+    }
+
+    return {
+      scene, camera, renderer, world, target,
+      updateCamera, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
+      nodePos, byId, WORLD_W, WORLD_H,
+      resetView: () => { target.set(982, 0, 671); theta = Math.PI * 0.25; phi = 0.8; radius = 2500; updateCamera(); },
+      dispose: () => { running = false; renderer.dispose(); },
+    };
+  }
+
+  window.AgentRouter3D = { init, COLORS };
+})();

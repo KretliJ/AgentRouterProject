@@ -155,7 +155,7 @@ frontend/prototype/  (abre index.html direto no navegador — file://, zero depe
 
 ## Visualização
 
-- **🗺 Mapa** — contorno do Brasil (Natural Earth, domínio público), grafo de BRs (fonte: mapa Rodoviário BIT/MTrans 2023), caminhões animados coloridos por estado, incidentes tracejados, **clicar numa decisão destaca a rota ativa (verde) vs fantasma (rosa)**.
+- **🗺 Mapa 3D** (Three.js) — contorno do Brasil sobre grid em perspectiva, grafo de BRs (fonte: mapa Rodoviário BIT/MTrans 2023), caminhões como modelos 3D (wireframe do `caminhao.glb`) coloridos por estado, incidentes tracejados, órbita/pan/zoom no mouse; **clicar numa decisão destaca a rota ativa (verde) vs fantasma (rosa)**.
 - **🏭 Terminal** — planta do centro logístico: docas de recebimento R1–R3, pátio (12 vagas com cargas visíveis), estrada de acesso, docas de expedição E1–E3.
 - **📊 Gantt de docas** — ocupação das últimas 12 h, barras por prioridade.
 - **🤖 Decisões do agente** — feed de cada escolha nas duas camadas (macro: rota+motivo; micro: doca/pátio).

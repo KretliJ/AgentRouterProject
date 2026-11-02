@@ -265,6 +265,16 @@ Antecipa a semântica do núcleo Java (F1+) em JS client-side. Componentes:
 
 Verificação (3 execuções independentes de 96 h simuladas): 21–23 entregas, SLA 67–87%, hard constraints respeitadas em todas (jornada ≤10 h, combustível ≥0), delta heterogêneo e honesto (−1,6 a +0,7 h médios; ativa ganha quando incidentes atingem a rota curta). Simplificações declaradas: sem terminal físico (docas = tempos fixos), fantasma por despacho (não replay pareado completo), reabastecimento em qualquer cidade-nó.
 
+### 9.6 Mapa 3D (implementado — `view3d.js`)
+
+Substituição do renderer SVG por Three.js r128 (local, `assets/vendor/`), mantendo os mesmos dados e o mesmo motor:
+
+- **Cena**: contorno do Brasil (Natural Earth 50m), grafo de arestas azuis, nós cilíndricos, rótulos com halo (sprites de canvas), grid de chão para vender a perspectiva.
+- **Caminhões**: wireframe derivado do `caminhao.glb` do usuário (frente +X, pivô no chão; wireframe de 1400 arestas amostradas embutido em `assets/caminhao_wireframe.js`). Cores por estado idênticas às dos triângulos SVG (azul viagem, amarelo manuseio, roxo descanso, cinza ocioso).
+- **Câmera orbital manual**: botão esquerdo = orbitar; Shift+esquerdo/botão do meio = pan; roda = zoom; duplo clique = reenquadrar. Clique curto sem arrasto resolve o nó mais próximo (mesma interação do SVG).
+- **Enquadramento calibrado**: target (982, 0, 671) e radius 2500 (phi 0.8 rad = ~36° do horizonte) — Brasil ocupa ~51% da largura, centro do bbox do contorno no centro da tela. Calibração feita por loop fechado de projeção (unproject do centro ↔ mover target).
+- Bugs pegos: `insertBefore` com pai errado abortava a montagem; TDZ mascarando a causa; fog dava a impressão de contorno "apagado"; far-plane 6000 < radius 8500 clipava a cena inteira (canvas preto); centro do grafo ≠ centro do contorno (o Brasil não é simétrico em torno da origem da moldura).
+
 ### 9.4 Segunda visualização (Terminal) e visibilidade do agente (implementado)
 
 - **Aba Terminal** (plant + Gantt): planta esquemática do centro logístico de BH — docas de recebimento R1–R3, pátio com 12 vagas (cargas em espera visíveis com id), estrada de acesso, docas de expedição E1–E3; **Gantt de docas** (janela de 12 h, barras coloridas por prioridade, tooltip por carga).

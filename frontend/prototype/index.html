@@ -77,6 +77,37 @@
     #panel .prio-alta    { color: #ffb347; border-color: #ffb347; }
     #panel .prio-padrao  { color: #9f9; border-color: #7a7; }
 
+    /* --- legenda (canto superior direito) --- */
+    #legenda {
+      position: fixed; right: 12px; top: 58px; width: 240px; z-index: 28;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px;
+      font: 11px/1.6 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none;
+    }
+    #legenda.aberta { display: block; }
+    #legenda h4 {
+      margin: 0 0 6px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--accent, #4a9eff);
+    }
+    #legenda .item { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #legenda .sw { width: 26px; height: 10px; flex: none; border-radius: 2px; }
+    #legenda .sw.linha { height: 3px; }
+    #legenda .sw.truck { height: 12px; background:
+      linear-gradient(90deg, currentColor 0 30%, transparent 30% 34%, currentColor 34% 100%);
+    }
+    #legenda .sw.node { width: 10px; height: 10px; border-radius: 50%; }
+    #legenda .l-azul   { background: #4a9eff; }
+    #legenda .l-laranja{ background: repeating-linear-gradient(90deg,#ff9d4d 0 6px,transparent 6px 10px); }
+    #legenda .l-vermelho{ background: repeating-linear-gradient(90deg,#ff4d4d 0 6px,transparent 6px 10px); }
+    #legenda .l-verde  { background: #7cfc00; }
+    #legenda .l-rosa   { background: repeating-linear-gradient(90deg,#ff7ad9 0 6px,transparent 6px 10px); }
+    #legenda .l-cinza  { background: #555; }
+    #legenda .t-azul   { color: #4a9eff; background: currentColor; }
+    #legenda .t-amarelo{ color: #ffd24d; background: currentColor; }
+    #legenda .t-roxo   { color: #b48cff; background: currentColor; }
+    #legenda .t-cinza  { color: #777; background: currentColor; }
+
     /* --- barra de simulação --- */
     #simbar {
       position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
@@ -182,6 +213,7 @@
     <button id="tab-terminal">🏭 Terminal</button>
     <button id="tab-decisoes">🤖 Decisões do agente</button>
     <button id="tab-gantt">📊 Gantt de docas</button>
+    <button id="tab-legenda">🎨 Legenda</button>
   </div>
 
   <div id="map" aria-label="Visualização do grafo rodoviário"></div>
@@ -193,6 +225,26 @@
   <div id="gantt-box">
     <h4>Gantt — ocupação de docas (últimas 12 h)</h4>
     <div id="gantt-svg"></div>
+  </div>
+
+  <div id="legenda">
+    <h4>Legenda</h4>
+    <div class="item"><span class="sw linha l-azul"></span> Rodovia (BR)</div>
+    <div class="item"><span class="sw linha l-laranja"></span> Incidente (×2,5 tempo)</div>
+    <div class="item"><span class="sw linha l-vermelho"></span> Interdição grave (×6)</div>
+    <div class="item"><span class="sw linha l-verde"></span> Rota escolhida pelo agente</div>
+    <div class="item"><span class="sw linha l-rosa"></span> Rota fantasma (menor distância)</div>
+    <div style="margin-top:8px"></div>
+    <div class="item"><span class="sw truck t-azul"></span> Caminhão em viagem</div>
+    <div class="item"><span class="sw truck t-amarelo"></span> Manuseio (doca/coleta)</div>
+    <div class="item"><span class="sw truck t-roxo"></span> Descanso obrigatório</div>
+    <div class="item"><span class="sw node" style="background:#4a9eff"></span> Belo Horizonte (hub)</div>
+    <div class="item"><span class="sw node" style="background:#eee"></span> Capital</div>
+    <div class="item"><span class="sw node" style="background:#999"></span> Polo regional</div>
+    <div style="margin-top:6px; color: var(--muted-foreground,#999); font-size:10px;">
+      Caminhões ociosos não aparecem. Tracejado rosa = rota que a política
+      fantasma (menor distância) teria tomado.
+    </div>
   </div>
 
   <div id="decisoes">
@@ -236,13 +288,15 @@
     <button id="resetbtn" title="Reiniciar simulação">⟲</button>
   </div>
 
-  <script src="assets/brazil_outline.js?v=8"></script>
-  <script src="assets/caminhao_wireframe.js?v=8"></script>
+  <script src="assets/brazil_outline.js?v=9"></script>
+  <script src="assets/caminhao_wireframe.js?v=9"></script>
+  <script src="assets/caminhao_glb.js?v=9"></script>
   <script src="assets/vendor/three.min.js"></script>
-  <script src="graph.js?v=8"></script>
-  <script src="view3d.js?v=8"></script>
-  <script src="data.js?v=8"></script>
-  <script src="sim.js?v=8"></script>
+  <script src="assets/vendor/GLTFLoader.js"></script>
+  <script src="graph.js?v=9"></script>
+  <script src="view3d.js?v=9"></script>
+  <script src="data.js?v=9"></script>
+  <script src="sim.js?v=9"></script>
   <script>
     const D = AgentRouterData, G = AgentRouterGraph;
     const fmt = {
@@ -450,6 +504,14 @@
         boxGantt.classList.toggle("aberto");
         boxDec.classList.toggle("empilhado", boxGantt.classList.contains("aberto") && boxDec.classList.contains("aberto"));
         renderGantt();
+      };
+      el("tab-legenda").onclick = () => {
+        el("legenda").classList.toggle("aberta");
+        if (el("legenda").classList.contains("aberta")) {
+          // legenda sempre sobrepõe os outros painéis: fecha gantt/decisões
+          boxGantt.classList.remove("aberto");
+          boxDec.classList.remove("aberto", "empilhado");
+        }
       };
 
       // ---------------------------------------------------------------

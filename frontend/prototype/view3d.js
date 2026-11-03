@@ -228,46 +228,58 @@
     }
     function clearRoutes() { routeGroup.clear(); }
 
-    // --- caminhões: wireframe do GLB ----------------------------------------
+    // --- caminhões: modelo GLB real (superfície), tintado por estado ---------
     const truckGroup = new THREE.Group();
     world.add(truckGroup);
-    const WF = window.CAMINHAO_WIREFRAME || [];
-    // centraliza o pivô: bbox X [-87.6,101.3] → centro ~6.9; Z ±34 → centro ~1.2
-    const CX = -94.45 / 2, CY = 0, CZ = -69.3 / 2; // subtrai centros (aprox)
-    const cx = (87.6 + 101.3) / 2, cz = (33.4 + 35.9) / 2;
-    // escala: no enquadramento nacional (raio ~4800), um caminhão precisa de
-    // ~90 unidades de comprimento para ficar visível ao lado dos nós (r=9)
+    // No enquadramento nacional (raio ~2500), caminhão de ~90 unidades é visível
     const truckScale = 90 / 189;
+
     const truckMatByState = {
-      em_viagem: new THREE.LineBasicMaterial({ color: COLORS.truckViajando }),
-      carregando: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
-      descarregando: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
-      reabastecendo: new THREE.LineBasicMaterial({ color: COLORS.truckManuseio }),
-      descansando: new THREE.LineBasicMaterial({ color: COLORS.truckDescanso }),
-      disponivel: new THREE.LineBasicMaterial({ color: COLORS.truckOcioso }),
+      em_viagem:     new THREE.MeshLambertMaterial({ color: COLORS.truckViajando }),
+      carregando:    new THREE.MeshLambertMaterial({ color: COLORS.truckManuseio }),
+      descarregando: new THREE.MeshLambertMaterial({ color: COLORS.truckManuseio }),
+      reabastecendo: new THREE.MeshLambertMaterial({ color: COLORS.truckManuseio }),
+      descansando:   new THREE.MeshLambertMaterial({ color: COLORS.truckDescanso }),
     };
-    const truckProto = new THREE.Group();
-    for (const [x1, y1, z1, x2, y2, z2] of WF) {
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3((x1 - cx) * truckScale, (y1) * truckScale, (z1 - cz) * truckScale),
-        new THREE.Vector3((x2 - cx) * truckScale, (y2) * truckScale, (z2 - cz) * truckScale),
-      ]);
-      truckProto.add(new THREE.LineSegments(geo, truckMatByState.em_viagem));
-    }
-    // espelhos por estado: cada caminhão clona o proto com seu material
-    function makeTruck() {
-      const g = new THREE.Group();
-      for (const seg of truckProto.children) {
-        const l = new THREE.LineSegments(seg.geometry, truckMatByState.em_viagem);
-        g.add(l);
-      }
-      truckGroup.add(g);
-      return g;
+    // ocioso: nem é mostrado (decisão do usuário)
+
+    let truckProto = null;       // Group do GLB carregado, com material base
+    let protoReady = false;
+    const pendingTrucks = [];    // caminhões que esperam o GLB chegar
+
+    function tintTruck(root, mat) {
+      root.traverse((o) => { if (o.isMesh) o.material = mat; });
     }
 
-    function setState(truckObj, status) {
-      const mat = truckMatByState[status] || truckMatByState.disponivel;
-      for (const seg of truckObj.children) seg.material = mat;
+    if (typeof window.CAMINHAO_GLB_B64 !== "undefined" && THREE.GLTFLoader) {
+      const loader = new THREE.GLTFLoader();
+      const bin = atob(window.CAMINHAO_GLB_B64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      loader.parse(bytes.buffer, "", (gltf) => {
+        truckProto = gltf.scene;
+        // centraliza o pivô: bbox X [-87.6, 101.3] → centro ~6.85; Z ±34 → ~1.2
+        const box = new THREE.Box3().setFromObject(truckProto);
+        const c = box.getCenter(new THREE.Vector3());
+        truckProto.position.set(-c.x * truckScale, 0, -c.z * truckScale);
+        truckProto.scale.setScalar(truckScale);
+        protoReady = true;
+        // cria os que ficaram pendentes
+        for (const t of pendingTrucks) t._3d = makeTruckFromProto(t.status);
+        pendingTrucks.length = 0;
+      }, (err) => console.error("[GLB]", err));
+    } else {
+      console.warn("GLB ou loader ausente — caminhões não serão exibidos.");
+    }
+
+    function makeTruckFromProto(status) {
+      if (!truckProto) return null;
+      const g = new THREE.Group();
+      const clone = truckProto.clone(true);       // clone profundo (compartilha geometria)
+      tintTruck(clone, truckMatByState[status] || truckMatByState.em_viagem);
+      g.add(clone);
+      truckGroup.add(g);
+      return g;
     }
 
     // --- câmera orbital manual (botão esquerdo = orbitar; shift/esq ou meio = pan; roda = zoom)
@@ -353,14 +365,35 @@
       updateCamera();
     });
 
-    // --- loop de render ------------------------------------------------------
+    // --- loop de render sob demanda: só renderiza quando algo muda ----------
+    // (câmera movendo, sim viva, janela redimensionada) — economiza GPU/bateria
     let running = true;
+    let needsRender = true;
+    const markDirty = () => { needsRender = true; };
     function frame() {
       if (!running) return;
       requestAnimationFrame(frame);
+      if (!needsRender) return;      // pula o render: frame "grátis"
+      needsRender = false;
       renderer.render(scene, camera);
     }
     frame();
+    // a câmera orbita/pan/zoom marca dirty; o sim.tick emite "tick" que chama
+    // renderSim → updateTrucks (muta a cena) → marcar dirty a partir daqui:
+    const _origUpdateTrucks = updateTrucks;
+    updateTrucks = function (trucks) { _origUpdateTrucks(trucks); markDirty(); };
+    refreshIncidents = (function (orig) {
+      return function (inc) { orig(inc); markDirty(); };
+    })(refreshIncidents);
+    showRoutes = (function (orig) {
+      return function (a, b) { orig(a, b); markDirty(); };
+    })(showRoutes);
+    clearRoutes = (function (orig) {
+      return function () { orig(); markDirty(); };
+    })(clearRoutes);
+    // durante arrasto de câmera: render contínuo
+    const _origUpdateCamera = updateCamera;
+    updateCamera = function () { _origUpdateCamera(); markDirty(); };
 
     window.addEventListener("resize", () => {
       camera.aspect = container.clientWidth / container.clientHeight;
@@ -368,23 +401,36 @@
       renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    /** Atualiza caminhões a partir do estado do sim (mesmos dados do SVG). */
+    /** Atualiza caminhões a partir do estado do sim (mesmos dados do SVG).
+     *  Ociosos (disponivel) não são exibidos — decisão do usuário.
+     *  Rotação: o modelo aponta para +X; o heading do sim vem em graus de tela
+     *  (0° = norte/-Z). Correção calibrada pelo usuário: +180° +15°. */
+    const ROT_FIX = (180 + 15) * Math.PI / 180;
     function updateTrucks(trucks) {
       const seen = new Set();
       for (const t of trucks) {
-        // posição: mesma interpolação do truckXY do index.html
+        // ocioso fora da cena
+        if (t.status === "disponivel") {
+          if (t._3d) { t._3d.visible = false; }
+          continue;
+        }
         const xy = window.__truckXY ? window.__truckXY(t) : null;
         if (!xy) continue;
         seen.add(t.id);
         let obj = t._3d;
-        if (!obj) { obj = t._3d = makeTruck(); }
+        if (!obj) {
+          if (!protoReady) { if (!pendingTrucks.includes(t)) pendingTrucks.push(t); continue; }
+          obj = t._3d = makeTruckFromProto(t.status);
+          if (!obj) continue;
+        }
+        obj.visible = true;
         const [wx, wz] = toWorld(xy[0], xy[1], WORLD_W, WORLD_H);
         obj.position.set(wx, 2, wz);
         const ang = window.__truckAngle ? window.__truckAngle(t) : 0;
-        // triângulo SVG aponta "para cima" (0° = -Y da tela). Mundo: 0° = -Z (norte).
-        // wireframe: frente em +X. Rotação em Y do mundo = -(ang tela - 90°)
-        obj.rotation.y = -((ang - 90) * Math.PI / 180) + Math.PI;
-        setState(obj, t.status);
+        obj.rotation.y = -((ang) * Math.PI / 180) + ROT_FIX;
+        // tint só quando muda de estado (barato: compara referência)
+        const mat = truckMatByState[t.status] || truckMatByState.em_viagem;
+        obj.traverse((o) => { if (o.isMesh && o.material !== mat) o.material = mat; });
       }
       for (const t of trucks) {
         if (!seen.has(t.id) && t._3d) { truckGroup.remove(t._3d); delete t._3d; }

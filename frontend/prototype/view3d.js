@@ -265,6 +265,8 @@
     // emojis de estado (marcador acima do caminhão):
     //   viagem=sorrindo, descanso=dormindo, manuseio=pensando, interdição grave=assustado
     const EMOJI = { viagem: "🙂", descanso: "😴", manuseio: "🤔", grave: "😱" };
+    const EMOJI_ESCALA = 60 / 5;      // 1/5 do tamanho anterior
+    const EMOJI_ALTURA = 24;          // encostado no teto da cabine
 
     const truckMatByState = {
       em_viagem:     new THREE.MeshLambertMaterial({ color: COLORS.truckViajando }),
@@ -275,6 +277,7 @@
     };
     const matSelecionado = new THREE.MeshLambertMaterial({ color: 0xffffff });
     const matIncidente = new THREE.MeshLambertMaterial({ color: COLORS.incGrave });
+    const matIncidenteComum = new THREE.MeshLambertMaterial({ color: 0xffb36b }); // laranja claro: atraso
     // ocioso: nem é mostrado (decisão do usuário)
 
     let truckProto = null;       // Group do GLB carregado, com material base
@@ -460,7 +463,9 @@
     let selectedTruckId = null;
     let incidentesAtuais = new Map();   // atualizado via updateTrucks(trucks, incidents)
     function truckEmoji(t, edgeAtual) {
-      if (edgeAtual && incidentesAtuais.get(edgeAtual)?.grave) return EMOJI.grave;
+      const inc = edgeAtual ? incidentesAtuais.get(edgeAtual) : null;
+      if (inc?.grave) return EMOJI.grave;
+      if (inc) return EMOJI.manuseio;   // incidente comum: pensando (desvio à frente)
       if (t.status === "descansando") return EMOJI.descanso;
       if (t.status === "carregando" || t.status === "descarregando" || t.status === "reabastecendo") return EMOJI.manuseio;
       return EMOJI.viagem;
@@ -474,7 +479,7 @@
       ctx.fillText(txt, 32, 34);
       const tex = new THREE.CanvasTexture(cv);
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-      spr.scale.set(60, 60, 1);
+      spr.scale.set(EMOJI_ESCALA, EMOJI_ESCALA, 1);
       return spr;
     }
     function updateTrucks(trucks, incidents) {
@@ -495,7 +500,7 @@
           if (!obj) continue;
           // emoji fixo acima do caminhão (texto trocado por estado)
           const spr = makeEmojiSprite(EMOJI.viagem);
-          spr.position.y = 46 / truckScale * 0.25;   // acima da cabine
+          spr.position.y = EMOJI_ALTURA;   // encostado no teto da cabine
           obj.add(spr);
           t._emoji = spr;
           // clique no caminhão → seleciona (raycast no ponteiro p/ este grupo)
@@ -507,16 +512,18 @@
         const ang = window.__truckAngle ? window.__truckAngle(t) : 0;
         obj.rotation.y = -(ang * Math.PI / 180) + (window.ROT_FIX_GRAUS ?? ROT_FIX_GRAUS) * Math.PI / 180;
 
-        // material: seleção > incidente grave na aresta atual > estado
+        // material: seleção > interdição grave (vermelho) > incidente comum
+        // (laranja claro) > estado
         const legAtual = t.legs && t.legIdx < t.legs.length ? t.legs[t.legIdx] : null;
         const edgeAtual = legAtual ? legAtual.edgeId : null;
-        const grave = edgeAtual && incidentesAtuais.get(edgeAtual)?.grave;
+        const inc = edgeAtual ? incidentesAtuais.get(edgeAtual) : null;
         const mat = selectedTruckId === t.id ? matSelecionado
-                  : grave ? matIncidente
+                  : inc?.grave ? matIncidente
+                  : inc ? matIncidenteComum
                   : (truckMatByState[t.status] || truckMatByState.em_viagem);
         obj.traverse((o) => { if (o.isMesh && o.material !== mat && o.material !== undefined) o.material = mat; });
 
-        // emoji por condição
+        // emoji por condição (grave só se a interdição for grave)
         if (t._emoji) {
           const want = truckEmoji(t, edgeAtual);
           if (t._emojiEmoji !== want) {

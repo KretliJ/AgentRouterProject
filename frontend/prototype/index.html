@@ -100,13 +100,13 @@
     #legenda .l-azul   { background: #4a9eff; }
     #legenda .l-laranja{ background: repeating-linear-gradient(90deg,#ff9d4d 0 6px,transparent 6px 10px); }
     #legenda .l-vermelho{ background: repeating-linear-gradient(90deg,#ff4d4d 0 6px,transparent 6px 10px); }
-    #legenda .l-verde  { background: #7cfc00; }
-    #legenda .l-rosa   { background: repeating-linear-gradient(90deg,#ff7ad9 0 6px,transparent 6px 10px); }
-    #legenda .l-cinza  { background: #555; }
     #legenda .t-azul   { color: #4a9eff; background: currentColor; }
     #legenda .t-amarelo{ color: #ffd24d; background: currentColor; }
     #legenda .t-roxo   { color: #b48cff; background: currentColor; }
     #legenda .t-cinza  { color: #777; background: currentColor; }
+    #legenda .t-laranja{ color: #ffb36b; background: currentColor; }
+    #legenda .t-vermelho{ color: #ff4d4d; background: currentColor; }
+    #legenda .t-branco { color: #fff; background: currentColor; }
 
     /* --- barra de simulação --- */
     #simbar {
@@ -232,18 +232,19 @@
     <div class="item"><span class="sw linha l-azul"></span> Rodovia (BR)</div>
     <div class="item"><span class="sw linha l-laranja"></span> Incidente (×2,5 tempo)</div>
     <div class="item"><span class="sw linha l-vermelho"></span> Interdição grave (×6)</div>
-    <div class="item"><span class="sw linha l-verde"></span> Rota escolhida pelo agente</div>
-    <div class="item"><span class="sw linha l-rosa"></span> Rota fantasma (menor distância)</div>
     <div style="margin-top:8px"></div>
     <div class="item"><span class="sw truck t-azul"></span> Caminhão em viagem</div>
     <div class="item"><span class="sw truck t-amarelo"></span> Manuseio (doca/coleta)</div>
     <div class="item"><span class="sw truck t-roxo"></span> Descanso obrigatório</div>
+    <div class="item"><span class="sw truck t-laranja"></span> Atraso (incidente na rota)</div>
+    <div class="item"><span class="sw truck t-vermelho"></span> Atraso grave (interdição)</div>
+    <div class="item"><span class="sw truck t-branco"></span> Caminhão selecionado</div>
     <div class="item"><span class="sw node" style="background:#4a9eff"></span> Belo Horizonte (hub)</div>
     <div class="item"><span class="sw node" style="background:#eee"></span> Capital</div>
     <div class="item"><span class="sw node" style="background:#999"></span> Polo regional</div>
     <div style="margin-top:6px; color: var(--muted-foreground,#999); font-size:10px;">
-      Caminhões ociosos não aparecem. Tracejado rosa = rota que a política
-      fantasma (menor distância) teria tomado.
+      Caminhões ociosos não aparecem. O emoji acima do caminhão indica a
+      condição: 🙂 viajando · 😴 dormindo · 🤔 pensando/desvio · 😱 interdição grave.
     </div>
 
     <h4 style="margin-top:10px">Calibração da rotação do caminhão</h4>

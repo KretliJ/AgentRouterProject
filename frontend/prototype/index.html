@@ -245,6 +245,16 @@
       Caminhões ociosos não aparecem. Tracejado rosa = rota que a política
       fantasma (menor distância) teria tomado.
     </div>
+
+    <h4 style="margin-top:10px">Calibração da rotação do caminhão</h4>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input id="rotfix-range" type="range" min="0" max="360" step="5" value="95" style="flex:1">
+      <span id="rotfix-val" style="font-variant-numeric:tabular-nums; min-width:38px; text-align:right;">95°</span>
+    </div>
+    <div style="font-size:10px; color:var(--muted-foreground,#999); margin-top:2px;">
+      Ajuste até a cabine apontar para o destino. Achou o valor? Fixe-o em
+      <code>ROT_FIX_GRAUS</code> no topo do <code>view3d.js</code>.
+    </div>
   </div>
 
   <div id="decisoes">
@@ -512,6 +522,12 @@
           boxGantt.classList.remove("aberto");
           boxDec.classList.remove("aberto", "empilhado");
         }
+      };
+      // slider de calibração da rotação do caminhão (aplica ao vivo)
+      el("rotfix-range").oninput = (ev) => {
+        window.ROT_FIX_GRAUS = +ev.target.value;
+        el("rotfix-val").textContent = ev.target.value + "°";
+        window.__v3.markDirty();
       };
 
       // ---------------------------------------------------------------

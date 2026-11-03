@@ -47,6 +47,15 @@
     rotaFantasma: 0xff7ad9,
   };
 
+  // ====================================================================
+  // CALIBRAÇÃO DA ROTAÇÃO DO CAMINHÃO — ajuste aqui (graus)
+  // A rotação final é: -heading_do_sim + ROT_FIX_GRAUS
+  //   195 = valor anterior. Você também pode ajustar AO VIVO pelo slider
+  //   dentro do painel Legenda; o valor escolhido ali vale só para a sessão.
+  // ====================================================================
+  const ROT_FIX_GRAUS = 95;
+  const ROT_FIX = ROT_FIX_GRAUS * Math.PI / 180;
+
   function init(container, { onClickNode } = {}) {
     const W = window.AgentRouterGraph ? 42 : 42; // graus (moldura fixa)
     const DEG = 100;                              // 1° = 100 unidades
@@ -403,9 +412,8 @@
 
     /** Atualiza caminhões a partir do estado do sim (mesmos dados do SVG).
      *  Ociosos (disponivel) não são exibidos — decisão do usuário.
-     *  Rotação: o modelo aponta para +X; o heading do sim vem em graus de tela
-     *  (0° = norte/-Z). Correção calibrada pelo usuário: +180° +15°. */
-    const ROT_FIX = (180 + 15) * Math.PI / 180;
+     *  Rotação: -heading_do_sim + window.ROT_FIX_GRAUS (calibrável ao vivo
+     *  pelos sliders da legenda; default fixado no topo deste arquivo). */
     function updateTrucks(trucks) {
       const seen = new Set();
       for (const t of trucks) {
@@ -427,7 +435,7 @@
         const [wx, wz] = toWorld(xy[0], xy[1], WORLD_W, WORLD_H);
         obj.position.set(wx, 2, wz);
         const ang = window.__truckAngle ? window.__truckAngle(t) : 0;
-        obj.rotation.y = -((ang) * Math.PI / 180) + ROT_FIX;
+        obj.rotation.y = -(ang * Math.PI / 180) + (window.ROT_FIX_GRAUS ?? ROT_FIX_GRAUS) * Math.PI / 180;
         // tint só quando muda de estado (barato: compara referência)
         const mat = truckMatByState[t.status] || truckMatByState.em_viagem;
         obj.traverse((o) => { if (o.isMesh && o.material !== mat) o.material = mat; });
@@ -439,7 +447,7 @@
 
     return {
       scene, camera, renderer, world, target,
-      updateCamera, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
+      updateCamera, markDirty, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
       nodePos, byId, WORLD_W, WORLD_H,
       resetView: () => { target.set(982, 0, 671); theta = Math.PI * 0.25; phi = 0.8; radius = 2500; updateCamera(); },
       dispose: () => { running = false; renderer.dispose(); },

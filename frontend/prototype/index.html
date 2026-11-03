@@ -430,7 +430,37 @@
       window.__truckAngle = legAngle;
       const V3 = window.__v3 = window.AgentRouter3D.init(document.getElementById("map"), {
         onClickNode: (nodeId) => showNode(nodeId),
+        onClickTruck: (truckId) => showTruck(truckId),
       });
+
+      // painel do caminhão selecionado (reusa o aside #panel)
+      function showTruck(truckId) {
+        const t = S.state.trucks.find((x) => x.id === truckId);
+        if (!t) return;
+        V3.selectTruck(truckId);
+        const emp = D.companyById(t.empresa_id);
+        const carga = t.cargaId ? S.state.cargas.find((c) => c.id === t.cargaId) : null;
+        const rota = t.path ? t.path.join(" → ") : (t.no_atual || "—");
+        const legAtual = t.legs && t.legIdx < t.legs.length ? t.legs[t.legIdx] : null;
+        const incidente = legAtual ? S.state.incidents.get(legAtual.edgeId) : null;
+        showPanel(
+          "🚚 " + t.id + " (" + t.placa + ")",
+          (emp ? emp.nome + " · " : "") + STATUS_CAM[t.status] ?? t.status,
+          table([
+            row("tipo", t.tipo),
+            row("velocidade média", fmt.kmh(t.vel_media_kmh)),
+            row("peso máx. de carga", fmt.ton(t.peso_max_ton)),
+            row("autonomia (tanque cheio)", fmt.km(t.autonomia_km)),
+            row("combustível", `${fmt.l(t.comb_atual_l)} de ${fmt.l(t.cap_comb_l)} (${Math.round((100 * t.comb_atual_l) / t.cap_comb_l)}%)`),
+            row("jornada", `${t.jornada_h} h de ${t.limite_jornada_h} h`),
+            row("posição atual", t.no_atual || "em rota"),
+            row("rota planejada", rota),
+            row("carga atual", carga ? `${carga.id} (${carga.classe}, ${fmt.ton(carga.peso_ton)}) → ${carga.destino}` : "nenhuma"),
+            row("incidente na frente", incidente ? `${incidente.br} — tempo ×${incidente.penalty}` : "não"),
+          ]) +
+          `<div style="margin-top:8px; font-size:10px; color:var(--muted-foreground,#999)">Clique novamente no caminhão para desselecionar.</div>`
+        );
+      }
 
       S.on("incidents", () => V3.refreshIncidents(S.state.incidents));
 
@@ -460,8 +490,8 @@
         gan.textContent = k.ganhoFantasmaH ? (k.ganhoFantasmaH > 0 ? "+" : "") + k.ganhoFantasmaH.toFixed(1) + " h" : "—";
         gan.className = k.ganhoFantasmaH > 0.05 ? "good" : k.ganhoFantasmaH < -0.05 ? "bad" : "";
 
-        // caminhões → render 3D
-        V3.updateTrucks(S.state.trucks);
+        // caminhões → render 3D (passa incidentes p/ emoji e tint)
+        V3.updateTrucks(S.state.trucks, S.state.incidents);
 
         // log
         if (S.state.log.length !== lastLogLen) {
@@ -702,6 +732,7 @@
       // ---------------------------------------------------------------
 
       // clique em nó (graph.js já resolveu o hit-test em coords. do mundo)
+      // — se o clique acertou um caminhão, o view3d resolve antes e não passa nó
       g.svg.addEventListener("graphclick", (ev) => {
         if (!ev.detail.nodeId) return;
         showNode(ev.detail.nodeId);

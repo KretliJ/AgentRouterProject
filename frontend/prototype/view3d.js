@@ -53,10 +53,10 @@
   //   195 = valor anterior. Você também pode ajustar AO VIVO pelo slider
   //   dentro do painel Legenda; o valor escolhido ali vale só para a sessão.
   // ====================================================================
-  const ROT_FIX_GRAUS = 95;
+  const ROT_FIX_GRAUS = 90;
   const ROT_FIX = ROT_FIX_GRAUS * Math.PI / 180;
 
-  function init(container, { onClickNode } = {}) {
+  function init(container, { onClickNode, onClickTruck } = {}) {
     const W = window.AgentRouterGraph ? 42 : 42; // graus (moldura fixa)
     const DEG = 100;                              // 1° = 100 unidades
     const WORLD_W = 42 * DEG, WORLD_H = 42 * DEG;
@@ -104,8 +104,20 @@
         pts.push(new THREE.Vector3(x, 0, z));
       }
       pts.push(pts[0].clone());
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      world.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: COLORS.outline, transparent: true, opacity: 0.9 })));
+      const outlineGroup = new THREE.Group();
+      const outlinePts = [];
+      for (const [lon, lat] of BRAZIL_OUTLINE) {
+        const [px, py] = P([lon, lat], WORLD_W, WORLD_H);
+        const [x, z] = toWorld(px, py, WORLD_W, WORLD_H);
+        outlinePts.push(new THREE.Vector3(x, 0, z));
+      }
+      outlinePts.push(outlinePts[0].clone());
+      for (const o of [0, 1.4]) {   // ×2 espessura: 2 linhas paralelas
+        const shifted = outlinePts.map(p => new THREE.Vector3(p.x + o, p.y, p.z));
+        const geo = new THREE.BufferGeometry().setFromPoints(shifted);
+        outlineGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: COLORS.outline, transparent: true, opacity: 0.9 })));
+      }
+      world.add(outlineGroup);
     }
 
     // --- arestas ------------------------------------------------------------
@@ -116,20 +128,24 @@
       const [x, z] = toWorld(px, py, WORLD_W, WORLD_H);
       nodePos.set(n.id, [x, z]);
     }
-    const edgeLines = new Map(); // edgeId -> Line
+    const edgeLines = new Map(); // edgeId -> Group com 2 linhas paralelas (fake linewidth ×2)
     const edgeMat = new THREE.LineBasicMaterial({ color: COLORS.edge, transparent: true, opacity: 0.75 });
-    const edgeGeoCache = new Map();
     for (const e of G.EDGES) {
       const a = nodePos.get(e.a), b = nodePos.get(e.b);
       if (!a || !b) continue;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(a[0], 0, a[1]),
-        new THREE.Vector3(b[0], 0, b[1]),
-      ]);
-      const line = new THREE.Line(geo, edgeMat);
-      line.userData.edgeId = e.id;
-      world.add(line);
-      edgeLines.set(e.id, line);
+      const grp = new THREE.Group();
+      // 2ª linha deslocada no plano (dz pequeno) — WebGL não suporta linewidth
+      const off = 1.6;
+      for (const o of [0, off]) {
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(a[0], 0, a[1] + o),
+          new THREE.Vector3(b[0], 0, b[1] + o),
+        ]);
+        grp.add(new THREE.Line(geo, edgeMat));
+      }
+      grp.userData.edgeId = e.id;
+      world.add(grp);
+      edgeLines.set(e.id, grp);
     }
 
     // --- nós: discos + pino -------------------------------------------------
@@ -152,7 +168,7 @@
       const pad = 12;
       const cv = document.createElement("canvas");
       const ctx = cv.getContext("2d");
-      const fontPx = 44;
+      const fontPx = 88;   // ×2: nomes das cidades legíveis de longe
       ctx.font = `${weight} ${fontPx}px system-ui, sans-serif`;
       const w = ctx.measureText(text).width + pad * 2;
       cv.width = Math.ceil(w);
@@ -169,7 +185,7 @@
       tex.minFilter = THREE.LinearFilter;
       const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
       const spr = new THREE.Sprite(mat);
-      spr.scale.set(cv.width / 22, cv.height / 22, 1);  // ~44px na cena
+      spr.scale.set(cv.width / 11, cv.height / 11, 1);  // dobro da escala anterior (22)
       spr.position.set(x, y, z);
       world.add(spr);
       labelSprites.push(spr);
@@ -220,16 +236,19 @@
           const e = G.EDGES.find((x) => x.id === id);
           if (!e) continue;
           const a = nodePos.get(e.a), b = nodePos.get(e.b);
-          const geo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(a[0], y, a[1]),
-            new THREE.Vector3(b[0], y, b[1]),
-          ]);
-          const mat = dashed
-            ? new THREE.LineDashedMaterial({ color, dashSize: 14, gapSize: 10 })
-            : new THREE.LineBasicMaterial({ color });
-          const line = new THREE.Line(geo, mat);
-          if (dashed) line.computeLineDistances();
-          routeGroup.add(line);
+          // ×2 espessura: 2 linhas paralelas deslocadas
+          for (const o of [0, 2.2]) {
+            const geo = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(a[0], y, a[1] + o),
+              new THREE.Vector3(b[0], y, b[1] + o),
+            ]);
+            const mat = dashed
+              ? new THREE.LineDashedMaterial({ color, dashSize: 14, gapSize: 10 })
+              : new THREE.LineBasicMaterial({ color });
+            const line = new THREE.Line(geo, mat);
+            if (dashed) line.computeLineDistances();
+            routeGroup.add(line);
+          }
         }
       };
       draw(edgesGhost, COLORS.rotaFantasma, true, 8);
@@ -241,7 +260,11 @@
     const truckGroup = new THREE.Group();
     world.add(truckGroup);
     // No enquadramento nacional (raio ~2500), caminhão de ~90 unidades é visível
-    const truckScale = 90 / 189;
+    const truckScale = 90 / 189 * 0.25;   // 25% do tamanho original (pedido do usuário)
+
+    // emojis de estado (marcador acima do caminhão):
+    //   viagem=sorrindo, descanso=dormindo, manuseio=pensando, interdição grave=assustado
+    const EMOJI = { viagem: "🙂", descanso: "😴", manuseio: "🤔", grave: "😱" };
 
     const truckMatByState = {
       em_viagem:     new THREE.MeshLambertMaterial({ color: COLORS.truckViajando }),
@@ -250,6 +273,8 @@
       reabastecendo: new THREE.MeshLambertMaterial({ color: COLORS.truckManuseio }),
       descansando:   new THREE.MeshLambertMaterial({ color: COLORS.truckDescanso }),
     };
+    const matSelecionado = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const matIncidente = new THREE.MeshLambertMaterial({ color: COLORS.incGrave });
     // ocioso: nem é mostrado (decisão do usuário)
 
     let truckProto = null;       // Group do GLB carregado, com material base
@@ -345,21 +370,37 @@
       updateCamera();
     });
     dom.addEventListener("pointerup", (ev) => {
-      if (drag && !drag.moved && onClickNode) {
-        // clique curto → nó mais próximo por raio na tela
+      if (drag && !drag.moved) {
+        // clique curto: 1º tenta caminhão (raycast contra o truckGroup),
+        // senão resolve o nó mais próximo por raio na tela
         const rect = dom.getBoundingClientRect();
         const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-        // projeta cada nó
-        let best = null, bestD = 28;
-        const v = new THREE.Vector3();
-        for (const [id, dot] of nodeDots) {
-          v.copy(dot.position).project(camera);
-          const sx = (v.x * 0.5 + 0.5) * rect.width;
-          const sy = (-v.y * 0.5 + 0.5) * rect.height;
-          const d = Math.hypot(sx - mx, sy - my);
-          if (d < bestD) { bestD = d; best = id; }
+        const ndc = new THREE.Vector2(
+          (mx / rect.width) * 2 - 1,
+          -(my / rect.height) * 2 + 1
+        );
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(ndc, camera);
+        if (onClickTruck) {
+          const hits = ray.intersectObjects(truckGroup.children, true);
+          for (const h of hits) {
+            let o = h.object;
+            while (o && !o.userData.truckId) o = o.parent;
+            if (o && o.userData.truckId) { onClickTruck(o.userData.truckId); drag = null; return; }
+          }
         }
-        if (best) onClickNode(best);
+        if (onClickNode) {
+          let best = null, bestD = 28;
+          const v = new THREE.Vector3();
+          for (const [id, dot] of nodeDots) {
+            v.copy(dot.position).project(camera);
+            const sx = (v.x * 0.5 + 0.5) * rect.width;
+            const sy = (-v.y * 0.5 + 0.5) * rect.height;
+            const d = Math.hypot(sx - mx, sy - my);
+            if (d < bestD) { bestD = d; best = id; }
+          }
+          if (best) onClickNode(best);
+        }
       }
       try { dom.releasePointerCapture(ev.pointerId); } catch (_) {}
       drag = null;
@@ -413,13 +454,35 @@
     /** Atualiza caminhões a partir do estado do sim (mesmos dados do SVG).
      *  Ociosos (disponivel) não são exibidos — decisão do usuário.
      *  Rotação: -heading_do_sim + window.ROT_FIX_GRAUS (calibrável ao vivo
-     *  pelos sliders da legenda; default fixado no topo deste arquivo). */
-    function updateTrucks(trucks) {
+     *  pelos sliders da legenda; default fixado no topo deste arquivo).
+     *  Emoji acima indica condição; seleção pinta de branco; incidente
+     *  grave na aresta atual pinta de vermelho. */
+    let selectedTruckId = null;
+    let incidentesAtuais = new Map();   // atualizado via updateTrucks(trucks, incidents)
+    function truckEmoji(t, edgeAtual) {
+      if (edgeAtual && incidentesAtuais.get(edgeAtual)?.grave) return EMOJI.grave;
+      if (t.status === "descansando") return EMOJI.descanso;
+      if (t.status === "carregando" || t.status === "descarregando" || t.status === "reabastecendo") return EMOJI.manuseio;
+      return EMOJI.viagem;
+    }
+    function makeEmojiSprite(txt) {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 64;
+      const ctx = cv.getContext("2d");
+      ctx.font = "48px system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, 32, 34);
+      const tex = new THREE.CanvasTexture(cv);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+      spr.scale.set(60, 60, 1);
+      return spr;
+    }
+    function updateTrucks(trucks, incidents) {
+      if (incidents) incidentesAtuais = incidents;
       const seen = new Set();
       for (const t of trucks) {
-        // ocioso fora da cena
         if (t.status === "disponivel") {
-          if (t._3d) { t._3d.visible = false; }
+          if (t._3d) { t._3d.visible = false; if (t._emoji) t._emoji.visible = false; }
           continue;
         }
         const xy = window.__truckXY ? window.__truckXY(t) : null;
@@ -430,24 +493,59 @@
           if (!protoReady) { if (!pendingTrucks.includes(t)) pendingTrucks.push(t); continue; }
           obj = t._3d = makeTruckFromProto(t.status);
           if (!obj) continue;
+          // emoji fixo acima do caminhão (texto trocado por estado)
+          const spr = makeEmojiSprite(EMOJI.viagem);
+          spr.position.y = 46 / truckScale * 0.25;   // acima da cabine
+          obj.add(spr);
+          t._emoji = spr;
+          // clique no caminhão → seleciona (raycast no ponteiro p/ este grupo)
+          obj.userData.truckId = t.id;
         }
         obj.visible = true;
         const [wx, wz] = toWorld(xy[0], xy[1], WORLD_W, WORLD_H);
         obj.position.set(wx, 2, wz);
         const ang = window.__truckAngle ? window.__truckAngle(t) : 0;
         obj.rotation.y = -(ang * Math.PI / 180) + (window.ROT_FIX_GRAUS ?? ROT_FIX_GRAUS) * Math.PI / 180;
-        // tint só quando muda de estado (barato: compara referência)
-        const mat = truckMatByState[t.status] || truckMatByState.em_viagem;
-        obj.traverse((o) => { if (o.isMesh && o.material !== mat) o.material = mat; });
+
+        // material: seleção > incidente grave na aresta atual > estado
+        const legAtual = t.legs && t.legIdx < t.legs.length ? t.legs[t.legIdx] : null;
+        const edgeAtual = legAtual ? legAtual.edgeId : null;
+        const grave = edgeAtual && incidentesAtuais.get(edgeAtual)?.grave;
+        const mat = selectedTruckId === t.id ? matSelecionado
+                  : grave ? matIncidente
+                  : (truckMatByState[t.status] || truckMatByState.em_viagem);
+        obj.traverse((o) => { if (o.isMesh && o.material !== mat && o.material !== undefined) o.material = mat; });
+
+        // emoji por condição
+        if (t._emoji) {
+          const want = truckEmoji(t, edgeAtual);
+          if (t._emojiEmoji !== want) {
+            t._emojiEmoji = want;
+            const cv = t._emoji.material.map.image;
+            const ctx = cv.getContext("2d");
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.font = "48px system-ui, sans-serif";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(want, 32, 34);
+            t._emoji.material.map.needsUpdate = true;
+          }
+          t._emoji.visible = true;
+        }
       }
       for (const t of trucks) {
-        if (!seen.has(t.id) && t._3d) { truckGroup.remove(t._3d); delete t._3d; }
+        if (!seen.has(t.id) && t._3d) { truckGroup.remove(t._3d); delete t._3d; if (t._emoji) delete t._emoji; }
       }
     }
+    /** Seleciona/deseleciona um caminhão por id (chamado pelo clique na cena). */
+    function selectTruck(id) {
+      selectedTruckId = (selectedTruckId === id) ? null : id;
+    }
+    function selectedTruck() { return selectedTruckId; }
 
     return {
       scene, camera, renderer, world, target,
       updateCamera, markDirty, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
+      selectTruck, selectedTruck, truckGroup,
       nodePos, byId, WORLD_W, WORLD_H,
       resetView: () => { target.set(982, 0, 671); theta = Math.PI * 0.25; phi = 0.8; radius = 2500; updateCamera(); },
       dispose: () => { running = false; renderer.dispose(); },

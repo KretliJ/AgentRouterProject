@@ -2,7 +2,7 @@
 
 > Simulação dual de um centro logístico rodoviário sediado em **Belo Horizonte**: uma camada **micro** (operação interna do terminal de cargas) e uma camada **macro** (roteamento de cargas na malha de rodovias federais), concorrentes no mesmo relógio, geridas por um agente de **otimização preemptiva** — e mensuradas contra uma **política fantasma**.
 
-**Status:** 🚧 protótipo funcional (out/2026) · design fechado · implementação do núcleo definitivo não iniciada · design completo em [`MODELAGEM.md`](MODELAGEM.md)
+**Status:** 🚧 **implementação do sistema real em andamento** (Java 21 + Python) · a versão web atual está congelada em [`legacy/`](legacy/) como **visualização conceitual** (explicação: [`legacy/README.md`](legacy/README.md)) · design completo em [`MODELAGEM.md`](MODELAGEM.md)
 
 ---
 

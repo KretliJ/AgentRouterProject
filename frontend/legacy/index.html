@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentRouter — Grafo rodoviário v1</title>
+  <style>
+    /* Standalone: fundo escuro neutro. Dentro do preview do app, o tema
+       chega via var(--foreground) etc. e estas cores servem de fallback. */
+    html, body { margin: 0; background: #16161c; }
+    #map {
+      width: 100vw;
+      height: 100vh;           /* cena 3D em tela cheia */
+      font-family: system-ui, sans-serif;
+      cursor: grab;
+    }
+    #map canvas { display: block; }
+    #map:active { cursor: grabbing; }
+    #map svg { display: block; width: 100%; height: 100vh; }
+    #map svg text { user-select: none; pointer-events: none; }
+    #map svg circle.node { cursor: pointer; }
+    .credit {
+      position: fixed; right: 8px; bottom: 6px;
+      font: 10px system-ui, sans-serif; color: #777; pointer-events: none;
+    }
+
+    /* --- controles de zoom --- */
+    #zoomctl {
+      position: fixed; left: 12px; top: 12px;
+      display: flex; flex-direction: column; gap: 4px; z-index: 10;
+    }
+    #zoomctl button {
+      width: 30px; height: 30px; border-radius: 6px;
+      border: 1px solid var(--border, #444);
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      font: 15px/1 system-ui, sans-serif; cursor: pointer;
+    }
+    #zoomctl button:hover { filter: brightness(1.25); }
+    #zoomhint {
+      position: fixed; left: 12px; bottom: 6px;
+      font: 10px system-ui, sans-serif; color: #666; pointer-events: none;
+    }
+
+    /* --- painel de inspeção --- */
+    #panel {
+      position: fixed; right: 0; top: 0; bottom: 0; width: 380px;
+      background: var(--card, #1b1b24);
+      border-left: 1px solid var(--border, #333);
+      color: var(--foreground, #eee);
+      font: 12px/1.5 system-ui, sans-serif;
+      padding: 14px 16px; box-sizing: border-box;
+      overflow-y: auto; display: none; z-index: 20;
+    }
+    #panel.open { display: block; }
+    #panel h2 { margin: 0 0 2px; font-size: 15px; }
+    #panel .sub { color: var(--muted-foreground, #999); margin-bottom: 10px; }
+    #panel h3 {
+      margin: 14px 0 4px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--accent, #4a9eff);
+      border-bottom: 1px solid var(--border, #333); padding-bottom: 3px;
+    }
+    #panel table { width: 100%; border-collapse: collapse; }
+    #panel td { padding: 2px 4px 2px 0; vertical-align: top; }
+    #panel td.k { color: var(--muted-foreground, #999); white-space: nowrap; width: 45%; }
+    #panel td.v { font-variant-numeric: tabular-nums; }
+    #panel .close {
+      position: absolute; right: 10px; top: 10px; border: 0;
+      background: transparent; color: var(--muted-foreground, #999);
+      font-size: 16px; cursor: pointer;
+    }
+    #panel .tag {
+      display: inline-block; padding: 0 7px; border-radius: 9px;
+      border: 1px solid var(--border, #444); font-size: 10px; margin: 1px 2px 1px 0;
+      color: var(--muted-foreground, #bbb);
+    }
+    #panel .prio-critica { color: #ff6b6b; border-color: #ff6b6b; }
+    #panel .prio-alta    { color: #ffb347; border-color: #ffb347; }
+    #panel .prio-padrao  { color: #9f9; border-color: #7a7; }
+
+    /* --- legenda (canto superior direito) --- */
+    #legenda {
+      position: fixed; right: 12px; top: 58px; width: 240px; z-index: 28;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px;
+      font: 11px/1.6 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none;
+    }
+    #legenda.aberta { display: block; }
+    #legenda h4 {
+      margin: 0 0 6px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--accent, #4a9eff);
+    }
+    #legenda .item { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #legenda .sw { width: 26px; height: 10px; flex: none; border-radius: 2px; }
+    #legenda .sw.linha { height: 3px; }
+    #legenda .sw.truck { height: 12px; background:
+      linear-gradient(90deg, currentColor 0 30%, transparent 30% 34%, currentColor 34% 100%);
+    }
+    #legenda .sw.node { width: 10px; height: 10px; border-radius: 50%; }
+    #legenda .l-azul   { background: #4a9eff; }
+    #legenda .l-laranja{ background: repeating-linear-gradient(90deg,#ff9d4d 0 6px,transparent 6px 10px); }
+    #legenda .l-vermelho{ background: repeating-linear-gradient(90deg,#ff4d4d 0 6px,transparent 6px 10px); }
+    #legenda .t-azul   { color: #4a9eff; background: currentColor; }
+    #legenda .t-amarelo{ color: #ffd24d; background: currentColor; }
+    #legenda .t-roxo   { color: #b48cff; background: currentColor; }
+    #legenda .t-cinza  { color: #777; background: currentColor; }
+    #legenda .t-laranja{ color: #ffb36b; background: currentColor; }
+    #legenda .t-vermelho{ color: #ff4d4d; background: currentColor; }
+    #legenda .t-branco { color: #fff; background: currentColor; }
+
+    /* --- barra de simulação --- */
+    #simbar {
+      position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px; z-index: 15;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 8px 16px;
+      font: 12px/1.4 system-ui, sans-serif; color: var(--foreground, #eee);
+      box-shadow: 0 4px 18px #0008;
+    }
+    #simbar .clock { font-variant-numeric: tabular-nums; min-width: 148px; }
+    #simbar button {
+      border: 1px solid var(--border, #444); border-radius: 6px;
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      font: 14px/1 system-ui, sans-serif; padding: 5px 10px; cursor: pointer;
+    }
+    #simbar button:hover { filter: brightness(1.25); }
+    #simbar select {
+      background: var(--card, #20202a); color: var(--foreground, #eee);
+      border: 1px solid var(--border, #444); border-radius: 6px; padding: 4px;
+      font: 12px system-ui, sans-serif;
+    }
+    #simbar .kpi { color: var(--muted-foreground, #bbb); }
+    #simbar .kpi b { color: var(--foreground, #eee); font-variant-numeric: tabular-nums; }
+    #simbar .kpi b.bad { color: #ff6b6b; }
+    #simbar .kpi b.good { color: #8f8; }
+
+    /* --- log de eventos --- */
+    #simlog {
+      position: fixed; left: 12px; bottom: 54px; width: 340px; max-height: 32vh;
+      overflow-y: auto; z-index: 14;
+      background: #16161cd8; border: 1px solid var(--border, #333); border-radius: 8px;
+      font: 11px/1.5 system-ui, sans-serif; color: var(--muted-foreground, #ccc);
+      padding: 6px 10px; display: none;
+    }
+    #simlog.open { display: block; }
+    #simlog .t { color: #666; margin-right: 6px; font-variant-numeric: tabular-nums; }
+    #simlog div { border-bottom: 1px dotted #ffffff14; padding: 2px 0; }
+
+    /* --- abas de camada --- */
+    #tabs {
+      position: fixed; left: 50%; top: 10px; transform: translateX(-50%);
+      display: flex; gap: 4px; z-index: 30;
+    }
+    #tabs button {
+      border: 1px solid var(--border, #444); border-radius: 8px;
+      background: var(--card, #20202acc); color: var(--foreground, #eee);
+      font: 12px/1 system-ui, sans-serif; padding: 7px 16px; cursor: pointer;
+    }
+    #tabs button.ativa { background: var(--accent, #4a9eff); color: #fff; border-color: transparent; }
+    #vistaTerminal { display: none; }
+    #vistaTerminal.ativa { display: block; }
+    #map.escondido { display: none; }
+
+    /* --- planta do terminal --- */
+    #planta { width: 100vw; height: calc(100vh - 130px); font-family: system-ui, sans-serif; }
+    #planta svg { display: block; width: 100%; height: 100%; }
+    #planta text { user-select: none; pointer-events: none; fill: var(--foreground, #eee); }
+    #planta .dock { fill: var(--card, #1b1b24); stroke: var(--border, #555); rx: 6; }
+    #planta .dock.ocupada { stroke: var(--accent, #4a9eff); }
+    #planta .patio-vaga { fill: none; stroke: var(--border, #333); }
+    #planta .patio-vaga.ocupada { fill: #ffd24d22; stroke: #ffd24d; }
+    /* --- gantt --- */
+    #gantt-box {
+      position: fixed; right: 12px; top: 58px; width: 420px; max-height: 40vh;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px; z-index: 25;
+      font: 11px/1.4 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none; overflow: hidden;
+    }
+    #gantt-box.aberto { display: block; }
+    #gantt-box h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent, #4a9eff); }
+    #gantt-box svg { display: block; width: 100%; }
+    #decisoes.empilhado { top: calc(58px + 42vh); max-height: calc(52vh - 76px); }
+
+    /* --- painel de decisões do agente --- */
+    #decisoes {
+      position: fixed; right: 12px; top: 58px; width: 400px; max-height: calc(100vh - 150px);
+      overflow-y: auto; z-index: 26;
+      background: var(--card, #1b1b24ee); border: 1px solid var(--border, #333);
+      border-radius: 10px; padding: 10px 12px;
+      font: 11px/1.5 system-ui, sans-serif; color: var(--foreground, #eee);
+      display: none;
+    }
+    #decisoes.aberto { display: block; }
+    #decisoes h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent, #4a9eff); }
+    #decisoes .dec {
+      border-left: 3px solid var(--border, #555); padding: 4px 8px; margin: 4px 0;
+      cursor: pointer; border-radius: 0 6px 6px 0; background: #ffffff06;
+    }
+    #decisoes .dec:hover { background: #ffffff12; }
+    #decisoes .dec.macro { border-left-color: var(--accent, #4a9eff); }
+    #decisoes .dec.micro { border-left-color: #ffd24d; }
+    #decisoes .dec .t { color: #777; font-variant-numeric: tabular-nums; margin-right: 6px; }
+    #decisoes .dec .tag {
+      display: inline-block; font-size: 9px; padding: 0 6px; border-radius: 8px;
+      border: 1px solid var(--border, #555); color: var(--muted-foreground, #999); margin-left: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="tabs">
+    <button id="tab-mapa" class="ativa">🗺 Mapa</button>
+    <button id="tab-terminal">🏭 Terminal</button>
+    <button id="tab-decisoes">🤖 Decisões do agente</button>
+    <button id="tab-gantt">📊 Gantt de docas</button>
+    <button id="tab-legenda">🎨 Legenda</button>
+  </div>
+
+  <div id="map" aria-label="Visualização do grafo rodoviário"></div>
+
+  <div id="vistaTerminal">
+    <div id="planta" aria-label="Planta do terminal logístico de BH"></div>
+  </div>
+
+  <div id="gantt-box">
+    <h4>Gantt — ocupação de docas (últimas 12 h)</h4>
+    <div id="gantt-svg"></div>
+  </div>
+
+  <div id="legenda">
+    <h4>Legenda</h4>
+    <div class="item"><span class="sw linha l-azul"></span> Rodovia (BR)</div>
+    <div class="item"><span class="sw linha l-laranja"></span> Incidente (×2,5 tempo)</div>
+    <div class="item"><span class="sw linha l-vermelho"></span> Interdição grave (×6)</div>
+    <div style="margin-top:8px"></div>
+    <div class="item"><span class="sw truck t-azul"></span> Caminhão em viagem</div>
+    <div class="item"><span class="sw truck t-amarelo"></span> Manuseio (doca/coleta)</div>
+    <div class="item"><span class="sw truck t-roxo"></span> Descanso obrigatório</div>
+    <div class="item"><span class="sw truck t-laranja"></span> Atraso (incidente na rota)</div>
+    <div class="item"><span class="sw truck t-vermelho"></span> Atraso grave (interdição)</div>
+    <div class="item"><span class="sw truck t-branco"></span> Caminhão selecionado</div>
+    <div class="item"><span class="sw node" style="background:#4a9eff"></span> Belo Horizonte (hub)</div>
+    <div class="item"><span class="sw node" style="background:#eee"></span> Capital</div>
+    <div class="item"><span class="sw node" style="background:#999"></span> Polo regional</div>
+    <div style="margin-top:6px; color: var(--muted-foreground,#999); font-size:10px;">
+      Caminhões ociosos não aparecem. Emojis acima do caminhão:
+      🙂 viajando · 🤔 manuseio · 😒 atraso (incidente) · 😱 interdição grave ·
+      😴 dormindo (acima, quando em descanso).
+    </div>
+
+    <h4 style="margin-top:10px">Calibração da rotação do caminhão</h4>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input id="rotfix-range" type="range" min="0" max="360" step="5" value="95" style="flex:1">
+      <span id="rotfix-val" style="font-variant-numeric:tabular-nums; min-width:38px; text-align:right;">95°</span>
+    </div>
+    <div style="font-size:10px; color:var(--muted-foreground,#999); margin-top:2px;">
+      Ajuste até a cabine apontar para o destino. Achou o valor? Fixe-o em
+      <code>ROT_FIX_GRAUS</code> no topo do <code>view3d.js</code>.
+    </div>
+  </div>
+
+  <div id="decisoes">
+    <h4>Decisões do agente — clique para destacar no mapa</h4>
+    <div id="decisoes-lista"></div>
+  </div>
+
+  <div id="zoomctl">
+    <button id="zin"  title="Aproximar">+</button>
+    <button id="zout" title="Afastar">−</button>
+    <button id="zreset" title="Restaurar (ou duplo clique)">⌂</button>
+  </div>
+  <div id="zoomhint">roda: zoom · arrastar: mover · duplo clique: reenquadrar · clique num nó: detalhes</div>
+  <div class="credit">
+    contorno: Natural Earth (domínio público) · rodovias: BIT/MTrans (2023)
+  </div>
+
+  <aside id="panel">
+    <button class="close" title="Fechar">✕</button>
+    <h2 id="p-title">—</h2>
+    <div class="sub" id="p-sub"></div>
+    <div id="p-body"></div>
+  </aside>
+
+  <div id="simlog"></div>
+  <div id="simbar">
+    <button id="playbtn" title="Iniciar/Pausar">▶</button>
+    <select id="speedsel" title="Velocidade da simulação">
+      <option value="1">1×</option>
+      <option value="60" selected>60×</option>
+      <option value="600">600×</option>
+    </select>
+    <span class="clock" id="simclock">—</span>
+    <span class="kpi">entregues <b id="k-ent">0</b></span>
+    <span class="kpi">SLA <b id="k-sla">—</b></span>
+    <span class="kpi">trânsito <b id="k-tra">0</b></span>
+    <span class="kpi">fila <b id="k-fila">0</b></span>
+    <span class="kpi">incidentes <b id="k-inc">0</b></span>
+    <span class="kpi">Δ fantasma <b id="k-ganho">—</b></span>
+    <button id="logbtn" title="Log de eventos">☰</button>
+    <button id="resetbtn" title="Reiniciar simulação">⟲</button>
+  </div>
+
+  <script src="assets/brazil_outline.js?v=9"></script>
+  <script src="assets/caminhao_wireframe.js?v=9"></script>
+  <script src="assets/caminhao_glb.js?v=9"></script>
+  <script src="assets/vendor/three.min.js"></script>
+  <script src="assets/vendor/GLTFLoader.js"></script>
+  <script src="graph.js?v=9"></script>
+  <script src="view3d.js?v=9"></script>
+  <script src="data.js?v=9"></script>
+  <script src="sim.js?v=9"></script>
+  <script>
+    const D = AgentRouterData, G = AgentRouterGraph;
+    const fmt = {
+      num: (v, d = 0) => v.toLocaleString("pt-BR", { maximumFractionDigits: d }),
+      ton: (v) => fmt.num(v, 1) + " t",
+      km: (v) => fmt.num(v) + " km",
+      kmh: (v) => fmt.num(v) + " km/h",
+      l: (v) => fmt.num(v, 1) + " L",
+      brl: (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }),
+      dt: (iso) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+    };
+    const row = (k, v) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`;
+    const table = (rows) => `<table>${rows.join("")}</table>`;
+
+    const el = (id) => document.getElementById(id);
+    const panel = el("panel");
+
+    function showPanel(title, sub, bodyHtml) {
+      el("p-title").textContent = title;
+      el("p-sub").textContent = sub;
+      el("p-body").innerHTML = bodyHtml;
+      panel.classList.add("open");
+    }
+    panel.querySelector(".close").onclick = () => panel.classList.remove("open");
+
+    const PORTES = { grande: "grande", medio: "médio", pequeno: "pequeno" };
+    const STATUS_CARGA = {
+      aguardando_coleta: "aguardando coleta", coleta_em_curso: "coleta p/ BHZ",
+      no_hub: "no terminal (BHZ)", em_transito: "em trânsito",
+      entregue: "entregue", atrasada: "atrasada",
+    };
+    const STATUS_CAM = {
+      disponivel: "disponível", em_viagem: "em viagem",
+      carregando: "carregando", manutencao: "manutenção",
+    };
+
+    function showNode(nodeId) {
+      const n = G.NODES.find((x) => x.id === nodeId);
+      if (!n) return;
+      const emps = D.companiesAt(nodeId);
+      const cargas = D.cargasAt(nodeId);
+
+      const empHtml = emps.length ? emps.map((e) => `
+        <h3>${e.nome}</h3>
+        ${table([
+          row("id", e.id),
+          row("tipo", e.tipo.replaceAll("_", " ")),
+          row("porte", PORTES[e.porte]),
+          row("cargas que envia", e.cargas_tipos.map((t) => `<span class="tag">${t}</span>`).join(" ")),
+          row("volume mensal", fmt.ton(e.volume_mensal_tn) + "/mês"),
+          row("frota própria", D.trucksOf(e.id).length + " caminhão(ões)"),
+        ])}
+        ${D.trucksOf(e.id).map((t) => `
+          <div style="margin:8px 0 2px;color:var(--muted-foreground,#999)">🚚 ${t.id} · ${t.placa} · ${t.tipo}</div>
+          ${table([
+            row("velocidade média", fmt.kmh(t.vel_media_kmh)),
+            row("peso máx. de carga", fmt.ton(t.peso_max_ton)),
+            row("tara", fmt.ton(t.tara_ton)),
+            row("autonomia (tanque cheio)", fmt.km(t.autonomia_km)),
+            row("combustível atual", `${fmt.l(t.comb_atual_l)} de ${fmt.l(t.cap_comb_l)} (${Math.round((100 * t.comb_atual_l) / t.cap_comb_l)}%)`),
+            row("jornada", `${t.jornada_h} h de ${t.limite_jornada_h} h`),
+            row("status", STATUS_CAM[t.status]),
+          ])}
+        `).join("")}
+      `).join("") : "<p><em>Sem empresas registradas neste nó.</em></p>";
+
+      const cargaHtml = cargas.length ? cargas.map((c) => `
+        <div style="margin:8px 0 2px;">📦 <strong>${c.id}</strong>
+          <span class="tag prio-${c.prioridade}">${c.prioridade}</span>
+          <span class="tag">${c.classe}</span></div>
+        ${table([
+          row("expedidor", D.companyById(c.empresa_id)?.nome ?? c.empresa_id),
+          row("receptor", c.receptor_id ? (D.companyById(c.receptor_id)?.nome ?? c.receptor_id) : "—"),
+          row("peso", fmt.ton(c.peso_ton)),
+          row("rota", `${c.origem} → [BHZ] → ${c.destino}`),
+          row("criada em", fmt.dt(c.criada_em)),
+          row("prazo limite", fmt.dt(c.prazo_limite)),
+          row("valor declarado", fmt.brl(c.valor_reais)),
+          row("status", STATUS_CARGA[c.status] ?? c.status),
+        ])}
+      `).join("") : "";
+
+      showPanel(
+        n.name + (n.hub ? "  ⭑" : ""),
+        (n.hub ? "sede do centro logístico · " : n.kind === "capital" ? "capital · " : "polo regional · ") + nodeId,
+        `<h3>Empresas (${emps.length})</h3>${empHtml}
+         ${cargas ? `<h3>Cargas com origem/destino aqui (${cargas.length})</h3>${cargaHtml}` : ""}`
+      );
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const S = window.AgentRouterSim;
+
+      // ---------------------------------------------------------------
+      // Camada de simulação — RENDER 3D (Three.js via view3d.js)
+      // O SVG foi substituído; truckXY/legAngle continuam a fonte da verdade
+      // e são exportados p/ o view3d consumir.
+      // ---------------------------------------------------------------
+      /** Posição interpolada do caminhão na perna atual (coords de projeção). */
+      function truckXY(t) {
+        const W = 42 * 100, H = 42 * 100;    // moldura fixa (graus × DEG)
+        if (!t.legs || t.legIdx >= t.legs.length) {
+          const n = G.NODES.find((n) => n.id === t.no_atual);
+          return n ? G.EQUIRECT.project(n.coord, W, H) : null;
+        }
+        const leg = t.legs[t.legIdx];
+        const A = G.EQUIRECT.project(G.NODES.find((n) => n.id === leg.a).coord, W, H);
+        const B = G.EQUIRECT.project(G.NODES.find((n) => n.id === leg.b).coord, W, H);
+        const f = leg.km ? Math.min(1, t.legKm / leg.km) : 0;
+        return [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f];
+      }
+      function legAngle(t) {
+        const W = 42 * 100, H = 42 * 100;
+        if (!t.legs || t.legIdx >= t.legs.length) return 0;
+        const leg = t.legs[t.legIdx];
+        const A = G.EQUIRECT.project(G.NODES.find((n) => n.id === leg.a).coord, W, H);
+        const B = G.EQUIRECT.project(G.NODES.find((n) => n.id === leg.b).coord, W, H);
+        return (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI + 90;
+      }
+      window.__truckXY = truckXY;
+      window.__truckAngle = legAngle;
+      const V3 = window.__v3 = window.AgentRouter3D.init(document.getElementById("map"), {
+        onClickNode: (nodeId) => showNode(nodeId),
+        onClickTruck: (truckId) => showTruck(truckId),
+      });
+
+      // painel do caminhão selecionado (reusa o aside #panel)
+      function showTruck(truckId) {
+        const t = S.state.trucks.find((x) => x.id === truckId);
+        if (!t) return;
+        V3.selectTruck(truckId);
+        const emp = D.companyById(t.empresa_id);
+        const carga = t.cargaId ? S.state.cargas.find((c) => c.id === t.cargaId) : null;
+        const rota = t.path ? t.path.join(" → ") : (t.no_atual || "—");
+        const legAtual = t.legs && t.legIdx < t.legs.length ? t.legs[t.legIdx] : null;
+        const incidente = legAtual ? S.state.incidents.get(legAtual.edgeId) : null;
+        showPanel(
+          "🚚 " + t.id + " (" + t.placa + ")",
+          (emp ? emp.nome + " · " : "") + STATUS_CAM[t.status] ?? t.status,
+          table([
+            row("tipo", t.tipo),
+            row("velocidade média", fmt.kmh(t.vel_media_kmh)),
+            row("peso máx. de carga", fmt.ton(t.peso_max_ton)),
+            row("autonomia (tanque cheio)", fmt.km(t.autonomia_km)),
+            row("combustível", `${fmt.l(t.comb_atual_l)} de ${fmt.l(t.cap_comb_l)} (${Math.round((100 * t.comb_atual_l) / t.cap_comb_l)}%)`),
+            row("jornada", `${t.jornada_h} h de ${t.limite_jornada_h} h`),
+            row("posição atual", t.no_atual || "em rota"),
+            row("rota planejada", rota),
+            row("carga atual", carga ? `${carga.id} (${carga.classe}, ${fmt.ton(carga.peso_ton)}) → ${carga.destino}` : "nenhuma"),
+            row("incidente na frente", incidente ? `${incidente.br} — tempo ×${incidente.penalty}` : "não"),
+          ]) +
+          `<div style="margin-top:8px; font-size:10px; color:var(--muted-foreground,#999)">Clique novamente no caminhão para desselecionar.</div>`
+        );
+      }
+
+      S.on("incidents", () => {
+        V3.setIncidents(S.state.incidents);   // tint/emoji dos caminhões
+        V3.refreshIncidents(S.state.incidents); // tracejado laranja/vermelho
+      });
+
+      // ---------------------------------------------------------------
+      // Bindings da barra
+      // ---------------------------------------------------------------
+      const clockEl = document.getElementById("simclock");
+      const playBtn = document.getElementById("playbtn");
+      const logBox = document.getElementById("simlog");
+      let lastLogLen = 0;
+      const T0_EPOCH = Date.parse("2026-10-24T08:00:00-03:00");
+
+      function renderSim() {
+        const k = S.kpis();
+        const d = new Date(T0_EPOCH + k.simMs);
+        clockEl.textContent = d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) +
+          (k.paused ? " · ⏸" : " · " + k.speed + "×");
+        playBtn.textContent = k.paused ? "▶" : "⏸";
+        document.getElementById("k-ent").textContent = k.entregues + (k.atrasadas ? ` (+${k.atrasadas} atrasadas)` : "");
+        const sla = document.getElementById("k-sla");
+        sla.textContent = k.sla === null ? "—" : Math.round(k.sla) + "%";
+        sla.className = k.sla !== null ? (k.sla >= 90 ? "good" : k.sla >= 70 ? "" : "bad") : "";
+        document.getElementById("k-tra").textContent = k.emTransito;
+        document.getElementById("k-fila").textContent = k.aguardando;
+        document.getElementById("k-inc").textContent = k.incidentes;
+        const gan = document.getElementById("k-ganho");
+        gan.textContent = k.ganhoFantasmaH ? (k.ganhoFantasmaH > 0 ? "+" : "") + k.ganhoFantasmaH.toFixed(1) + " h" : "—";
+        gan.className = k.ganhoFantasmaH > 0.05 ? "good" : k.ganhoFantasmaH < -0.05 ? "bad" : "";
+
+        // caminhões → render 3D (incidentes alimentados pelo evento "incidents"
+        // via V3.setIncidents; updateTrucks lê a cópia vigente)
+        V3.updateTrucks(S.state.trucks);
+
+        // log
+        if (S.state.log.length !== lastLogLen) {
+          lastLogLen = S.state.log.length;
+          logBox.innerHTML = S.state.log.map((e) => {
+            const dt = new Date(T0_EPOCH + e.t);
+            return `<div><span class="t">${dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>${e.icon} ${e.msg}</div>`;
+          }).join("");
+        }
+      }
+      S.on("tick", renderSim);
+      S.on("cargas", renderSim);
+      S.on("log", renderSim);
+      const H_MS = 3600e3;             // 1 h em ms (escopo da página)
+      let renderSimExtra = null;       // planta/gantt/decisões (montados adiante)
+      function renderAll() { renderSim(); if (renderSimExtra) renderSimExtra(); }
+      S.on("tick", renderAll); S.on("cargas", renderAll); S.on("log", renderAll);
+      renderSim();                     // só o mapa; extras montam depois
+
+      playBtn.onclick = () => (S.isPaused() ? S.start() : S.pause());
+      document.getElementById("logbtn").onclick = () => logBox.classList.toggle("open");
+      document.getElementById("resetbtn").onclick = () => S.reset();
+      document.getElementById("speedsel").onchange = (ev) => S.setSpeed(+ev.target.value);
+      window.addEventListener("keydown", (ev) => {
+        if (ev.key === " ") { ev.preventDefault(); playBtn.click(); }
+      });
+
+      // ---------------------------------------------------------------
+      // Abas de camada (Mapa / Terminal) + painéis flutuantes
+      // ---------------------------------------------------------------
+      const tabMapa = el("tab-mapa"), tabTerm = el("tab-terminal");
+      const vistaTerm = el("vistaTerminal");
+      const boxGantt = el("gantt-box"), boxDec = el("decisoes");
+      tabMapa.onclick = () => {
+        tabMapa.classList.add("ativa"); tabTerm.classList.remove("ativa");
+        document.getElementById("map").classList.remove("escondido");
+        vistaTerm.classList.remove("ativa");
+      };
+      tabTerm.onclick = () => {
+        tabTerm.classList.add("ativa"); tabMapa.classList.remove("ativa");
+        document.getElementById("map").classList.add("escondido");
+        vistaTerm.classList.add("ativa");
+      };
+      el("tab-decisoes").onclick = () => {
+        boxDec.classList.toggle("aberto");
+        boxDec.classList.toggle("empilhado", boxGantt.classList.contains("aberto"));
+        renderDecisoes();
+      };
+      el("tab-gantt").onclick = () => {
+        boxGantt.classList.toggle("aberto");
+        boxDec.classList.toggle("empilhado", boxGantt.classList.contains("aberto") && boxDec.classList.contains("aberto"));
+        renderGantt();
+      };
+      el("tab-legenda").onclick = () => {
+        el("legenda").classList.toggle("aberta");
+        if (el("legenda").classList.contains("aberta")) {
+          // legenda sempre sobrepõe os outros painéis: fecha gantt/decisões
+          boxGantt.classList.remove("aberto");
+          boxDec.classList.remove("aberto", "empilhado");
+        }
+      };
+      // slider de calibração da rotação do caminhão (aplica ao vivo)
+      el("rotfix-range").oninput = (ev) => {
+        window.ROT_FIX_GRAUS = +ev.target.value;
+        el("rotfix-val").textContent = ev.target.value + "°";
+        window.__v3.markDirty();
+      };
+
+      // ---------------------------------------------------------------
+      // Painel de decisões: lista por camada; clique destaca rotas no mapa 3D
+      // ---------------------------------------------------------------
+      const SVGNS = "http://www.w3.org/2000/svg";
+      const mk = (tag) => document.createElementNS(SVGNS, tag);
+      function destacaDecisao(dec) {
+        if (!dec.edgesAtivos) return;
+        V3.showRoutes(dec.edgesAtivos, dec.edgesGhost);
+        // some o destaque após 6 s
+        clearTimeout(destacaDecisao._t);
+        destacaDecisao._t = setTimeout(() => V3.clearRoutes(), 6000);
+      }
+      function renderDecisoes() {
+        const box = document.getElementById("decisoes-lista");
+        box.innerHTML = S.state.decisions.slice(0, 40).map((d, i) => {
+          const dt = new Date(T0_EPOCH + d.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="dec ${d.camada}" data-i="${i}">
+            <span class="t">${dt}</span>${d.camada === "macro" ? "🗺" : "🏭"} ${d.msg}
+            <span class="tag">${d.camada}</span></div>`;
+        }).join("") || "<em>Sem decisões ainda — ligue a simulação.</em>";
+        box.querySelectorAll(".dec").forEach((elx) => {
+          elx.onclick = () => {
+            const d = S.state.decisions[+elx.dataset.i];
+            if (d.camada === "macro" && d.edgesAtivos) destacaDecisao(d);
+          };
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // Planta do terminal: docas R1..R3 / E1..E3 + pátio 12 vagas
+      // ---------------------------------------------------------------
+      const planta = el("planta");
+      const NSsvg = SVGNS;
+      const psvg = mk("svg");
+      psvg.setAttribute("viewBox", "0 0 1000 520");
+      planta.appendChild(psvg);
+      function label(x, y, txt, size = 13, fill = "var(--muted-foreground,#999)") {
+        const t = mk("text");
+        t.setAttribute("x", x); t.setAttribute("y", y);
+        t.setAttribute("font-size", size); t.setAttribute("fill", fill);
+        t.textContent = txt;
+        psvg.appendChild(t);
+        return t;
+      }
+      function rect(x, y, w, h, cls, fillOverride) {
+        const r = mk("rect");
+        r.setAttribute("x", x); r.setAttribute("y", y);
+        r.setAttribute("width", w); r.setAttribute("height", h);
+        r.setAttribute("rx", 6);
+        r.setAttribute("class", cls);
+        if (fillOverride) r.setAttribute("fill", fillOverride);
+        psvg.appendChild(r);
+        return r;
+      }
+      // layout: recebimento em cima, expedição embaixo, pátio no meio
+      // (tudo à esquerda p/ não ficar sob os painéis flutuantes)
+      label(30, 40, "RECEBIMENTO (chegadas)", 13, "var(--accent,#4a9eff)");
+      label(30, 360, "EXPEDIÇÃO (saídas)", 13, "var(--accent,#4a9eff)");
+      label(30, 175, "PÁTIO (12 vagas)", 13, "#ffd24d");
+      const dockEls = { rec: [], exp: [], patio: [] };
+      for (let i = 0; i < S.N_DOCAS_REC; i++) {
+        dockEls.rec.push({ r: rect(30 + i * 170, 55, 150, 90, "dock"), t: label(40 + i * 170, 105, "R" + (i + 1), 14), s: label(40 + i * 170, 128, "livre", 11) });
+      }
+      for (let i = 0; i < S.N_DOCAS_EXP; i++) {
+        dockEls.exp.push({ r: rect(30 + i * 170, 375, 150, 90, "dock"), t: label(40 + i * 170, 425, "E" + (i + 1), 14), s: label(40 + i * 170, 448, "livre", 11) });
+      }
+      for (let i = 0; i < S.N_PATIO; i++) {
+        const col = i % 6, row = Math.floor(i / 6);
+        dockEls.patio.push({ r: rect(30 + col * 88, 190 + row * 70, 80, 62, "patio-vaga"), t: label(36 + col * 88, 226 + row * 70, "", 9) });
+      }
+      // estrada de acesso decorativa
+      const road = mk("line");
+      road.setAttribute("x1", 0); road.setAttribute("y1", 335);
+      road.setAttribute("x2", 620); road.setAttribute("y2", 335);
+      road.setAttribute("stroke", "var(--border,#333)");
+      road.setAttribute("stroke-width", 30);
+      road.setAttribute("stroke-opacity", .25);
+      psvg.insertBefore(road, psvg.firstChild);
+      label(16, 331, "BR-040 / BR-116 →", 11);
+
+      function renderPlanta() {
+        const st = S.state;
+        const prioColor = { critica: "#ff6b6b", alta: "#ffb347", padrao: "#8f8" };
+        st.terminal.docasRec.forEach((d, i) => {
+          const e = dockEls.rec[i];
+          if (d) {
+            const c = st.cargas.find((x) => x.id === d.cargaId);
+            e.r.classList.add("ocupada");
+            e.t.textContent = "R" + (i + 1) + " · " + d.cargaId;
+            e.s.textContent = c ? `${c.origem}→${c.destino} · ${Math.max(0, (d.ateMs - st.simMs) / 60000).toFixed(0)} min` : "";
+            e.s.setAttribute("fill", prioColor[c?.prioridade] || "#999");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "R" + (i + 1); e.s.textContent = "livre"; e.s.setAttribute("fill", "#777");
+          }
+        });
+        st.terminal.docasExp.forEach((d, i) => {
+          const e = dockEls.exp[i];
+          if (d) {
+            const c = st.cargas.find((x) => x.id === d.cargaId);
+            e.r.classList.add("ocupada");
+            e.t.textContent = "E" + (i + 1) + " · " + d.cargaId;
+            e.s.textContent = c ? `→ ${c.destino} · ${Math.max(0, (d.ateMs - st.simMs) / 60000).toFixed(0)} min` : "";
+            e.s.setAttribute("fill", prioColor[c?.prioridade] || "#999");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "E" + (i + 1); e.s.textContent = "livre"; e.s.setAttribute("fill", "#777");
+          }
+        });
+        // pátio: cargas no_hub sem doca
+        const patio = st.cargas.filter((c) => c.status === "no_hub").slice(0, S.N_PATIO);
+        dockEls.patio.forEach((e, i) => {
+          const c = patio[i];
+          if (c) {
+            e.r.classList.add("ocupada");
+            e.t.textContent = c.id.replace("CARGA-", "C");
+          } else {
+            e.r.classList.remove("ocupada");
+            e.t.textContent = "";
+          }
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // Gantt de docas (últimas 12 h)
+      // ---------------------------------------------------------------
+      const PRIO_BAR = { critica: "#ff6b6b", alta: "#ffb347", padrao: "#8f8" };
+      function renderGantt() {
+        const st = S.state;
+        const janela = 12 * H_MS;
+        const t1 = st.simMs, t0 = t1 - janela;
+        const rows = [
+          ...st.terminal.docasRec.map((_, i) => ({ key: "rec:" + i, nome: "R" + (i + 1) })),
+          ...st.terminal.docasExp.map((_, i) => ({ key: "exp:" + i, nome: "E" + (i + 1) })),
+        ];
+        const W = 396, rowH = 18, top = 18, left = 34, rightPad = 22;
+        const Hg = top + rows.length * rowH + 22;
+        const x = (ms) => left + ((ms - t0) / janela) * (W - left - rightPad);
+        let bars = "";
+        for (const gBar of st.gantt) {
+          if (gBar.ate < t0 || gBar.de > t1) continue;
+          const r = rows.findIndex((rr) => rr.key === gBar.tipo + ":" + gBar.idx);
+          if (r < 0) continue;
+          const bx = Math.max(left, x(gBar.de));
+          const bw = Math.max(2, Math.min(x(gBar.ate), W - rightPad) - bx);
+          bars += `<rect x="${bx.toFixed(1)}" y="${(top + r * rowH + 3).toFixed(1)}" width="${bw.toFixed(1)}" height="${rowH - 6}" rx="2" fill="${PRIO_BAR[gBar.prio] || "#8f8"}" opacity=".85"><title>${gBar.cargaId} (${gBar.prio})</title></rect>`;
+        }
+        let axis = "", grid = "";
+        for (let hh = 0; hh <= 12; hh += 2) {
+          const gx = x(t0 + hh * H_MS);
+          grid += `<line x1="${gx}" y1="${top}" x2="${gx}" y2="${top + rows.length * rowH}" stroke="#ffffff14"/>`;
+          axis += `<text x="${gx}" y="${Hg - 6}" font-size="9" fill="#777" text-anchor="middle">-${12 - hh}h</text>`;
+        }
+        let labs = "";
+        rows.forEach((rr, i) => { labs += `<text x="4" y="${top + i * rowH + 13}" font-size="10" fill="#bbb">${rr.nome}</text>`; });
+        el("gantt-svg").innerHTML =
+          `<svg viewBox="0 0 ${W} ${Hg}">${grid}${bars}${labs}${axis}</svg>`;
+      }
+
+      // render acoplado ao tick — engata planta/gantt/decisões no loop
+      renderSimExtra = function () {
+        renderPlanta();
+        if (boxDec.classList.contains("aberto")) renderDecisoes();
+        if (boxGantt.classList.contains("aberto")) renderGantt();
+      };
+      renderSimExtra();
+
+      // ---------------------------------------------------------------
+      // Interações existentes (clique no nó, zoom)
+      // ---------------------------------------------------------------
+
+      // clique em nó (graph.js já resolveu o hit-test em coords. do mundo)
+      // — se o clique acertou um caminhão, o view3d resolve antes e não passa nó
+      g.svg.addEventListener("graphclick", (ev) => {
+        if (!ev.detail.nodeId) return;
+        showNode(ev.detail.nodeId);
+        // se o nó ficou oculto atrás do painel, arrasta a câmera p/ alinhá-lo
+        requestAnimationFrame(() => {
+          const dot = g.svg.querySelector(`circle.node[data-node-id="${ev.detail.nodeId}"]`);
+          const pr = panel.getBoundingClientRect();
+          const cr = dot.getBoundingClientRect();
+          if (cr.left + cr.width / 2 > pr.left) {
+            const dx = (pr.left - 60) - (cr.left + cr.width / 2); // alvo: 60px à esquerda do painel
+            g.svg.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 9, clientX: 0, clientY: 0 }));
+            g.svg.dispatchEvent(new PointerEvent("pointermove", { pointerId: 9, clientX: dx, clientY: 0 }));
+            g.svg.dispatchEvent(new PointerEvent("pointerup", { pointerId: 9, clientX: dx, clientY: 0 }));
+          }
+        });
+      });
+
+      // controles de zoom (botões disparam roda no centro do mapa; teclado: +/−/0)
+      const zAt = (dy) => {
+        const r = g.svg.getBoundingClientRect();
+        g.svg.dispatchEvent(new WheelEvent("wheel", {
+          deltaY: dy, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+          bubbles: true, cancelable: true,
+        }));
+      };
+      el("zin").onclick  = () => zAt(-100);
+      el("zout").onclick = () => zAt(100);
+      el("zreset").onclick = () => g.resetView();
+      window.addEventListener("keydown", (ev) => {
+        if (ev.key === "+" || ev.key === "=") el("zin").click();
+        if (ev.key === "-") el("zout").click();
+        if (ev.key === "0") el("zreset").click();
+        if (ev.key === "Escape") panel.classList.remove("open");
+      });
+    });
+  </script>
+</body>
+</html>

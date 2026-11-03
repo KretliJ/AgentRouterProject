@@ -463,7 +463,10 @@
         );
       }
 
-      S.on("incidents", () => V3.refreshIncidents(S.state.incidents));
+      S.on("incidents", () => {
+        V3.setIncidents(S.state.incidents);   // tint/emoji dos caminhões
+        V3.refreshIncidents(S.state.incidents); // tracejado laranja/vermelho
+      });
 
       // ---------------------------------------------------------------
       // Bindings da barra
@@ -491,8 +494,9 @@
         gan.textContent = k.ganhoFantasmaH ? (k.ganhoFantasmaH > 0 ? "+" : "") + k.ganhoFantasmaH.toFixed(1) + " h" : "—";
         gan.className = k.ganhoFantasmaH > 0.05 ? "good" : k.ganhoFantasmaH < -0.05 ? "bad" : "";
 
-        // caminhões → render 3D (passa incidentes p/ emoji e tint)
-        V3.updateTrucks(S.state.trucks, S.state.incidents);
+        // caminhões → render 3D (incidentes alimentados pelo evento "incidents"
+        // via V3.setIncidents; updateTrucks lê a cópia vigente)
+        V3.updateTrucks(S.state.trucks);
 
         // log
         if (S.state.log.length !== lastLogLen) {

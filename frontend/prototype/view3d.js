@@ -461,7 +461,10 @@
      *  Emoji acima indica condição; seleção pinta de branco; incidente
      *  grave na aresta atual pinta de vermelho. */
     let selectedTruckId = null;
-    let incidentesAtuais = new Map();   // atualizado via updateTrucks(trucks, incidents)
+    let incidentesAtuais = new Map();   // atualizado via setIncidents(map)
+    /** Fonte única da verdade dos incidentes p/ tint/emoji. Chamada pelo
+     *  index.html a cada evento "incidents" do sim (e no renderSim). */
+    function setIncidents(map) { incidentesAtuais = map; }
     function truckEmoji(t, edgeAtual) {
       const inc = edgeAtual ? incidentesAtuais.get(edgeAtual) : null;
       if (inc?.grave) return EMOJI.grave;
@@ -482,8 +485,7 @@
       spr.scale.set(EMOJI_ESCALA, EMOJI_ESCALA, 1);
       return spr;
     }
-    function updateTrucks(trucks, incidents) {
-      if (incidents) incidentesAtuais = incidents;
+    function updateTrucks(trucks) {
       const seen = new Set();
       for (const t of trucks) {
         if (t.status === "disponivel") {
@@ -551,7 +553,7 @@
 
     return {
       scene, camera, renderer, world, target,
-      updateCamera, markDirty, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
+      updateCamera, markDirty, setIncidents, updateTrucks, refreshIncidents, showRoutes, clearRoutes,
       selectTruck, selectedTruck, truckGroup,
       nodePos, byId, WORLD_W, WORLD_H,
       resetView: () => { target.set(982, 0, 671); theta = Math.PI * 0.25; phi = 0.8; radius = 2500; updateCamera(); },

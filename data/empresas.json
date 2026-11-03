@@ -1,0 +1,1333 @@
+{
+ "empresas": [
+  {
+   "id": "EMP-01",
+   "nome": "MinasLog Transportes",
+   "tipo": "operador_logistico",
+   "no": "BHZ",
+   "porte": "grande",
+   "cargasTipos": [
+    "seca",
+    "superdimensionada"
+   ],
+   "volumeMensalTn": 9500.0
+  },
+  {
+   "id": "EMP-02",
+   "nome": "Serra Azul Alimentos",
+   "tipo": "agroindustria",
+   "no": "BHZ",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca",
+    "refrigerada"
+   ],
+   "volumeMensalTn": 3200.0
+  },
+  {
+   "id": "EMP-03",
+   "nome": "Aços do Vale S.A.",
+   "tipo": "siderurgia",
+   "no": "BHZ",
+   "porte": "grande",
+   "cargasTipos": [
+    "superdimensionada",
+    "seca"
+   ],
+   "volumeMensalTn": 12000.0
+  },
+  {
+   "id": "EMP-04",
+   "nome": "Anhanguera Distribuição",
+   "tipo": "atacado_varejo",
+   "no": "SAO",
+   "porte": "grande",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 15000.0
+  },
+  {
+   "id": "EMP-05",
+   "nome": "Reunidas Paulista Química",
+   "tipo": "quimica",
+   "no": "SAO",
+   "porte": "grande",
+   "cargasTipos": [
+    "perigosa"
+   ],
+   "volumeMensalTn": 7800.0
+  },
+  {
+   "id": "EMP-06",
+   "nome": "Paulista Moda Confecções",
+   "tipo": "textil",
+   "no": "SAO",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 2100.0
+  },
+  {
+   "id": "EMP-07",
+   "nome": "Guanabara Petroquímica",
+   "tipo": "quimica",
+   "no": "RIO",
+   "porte": "grande",
+   "cargasTipos": [
+    "perigosa"
+   ],
+   "volumeMensalTn": 11000.0
+  },
+  {
+   "id": "EMP-08",
+   "nome": "Atlântico Frigor do Rio",
+   "tipo": "frigorifico",
+   "no": "RIO",
+   "porte": "medio",
+   "cargasTipos": [
+    "refrigerada"
+   ],
+   "volumeMensalTn": 4100.0
+  },
+  {
+   "id": "EMP-09",
+   "nome": "Carioca Comércio Exterior",
+   "tipo": "atacado_varejo",
+   "no": "RIO",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 3600.0
+  },
+  {
+   "id": "EMP-10",
+   "nome": "Capixaba Exportadora de Café",
+   "tipo": "agroindustria",
+   "no": "VIT",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 1800.0
+  },
+  {
+   "id": "EMP-11",
+   "nome": "Porto Celeste Logística",
+   "tipo": "operador_logistico",
+   "no": "VIT",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca",
+    "superdimensionada"
+   ],
+   "volumeMensalTn": 5200.0
+  },
+  {
+   "id": "EMP-12",
+   "nome": "Celeste Mineração Capixaba",
+   "tipo": "mineracao",
+   "no": "VIT",
+   "porte": "grande",
+   "cargasTipos": [
+    "granel"
+   ],
+   "volumeMensalTn": 20000.0
+  },
+  {
+   "id": "EMP-13",
+   "nome": "Cerrado Cereais do Planalto",
+   "tipo": "agroindustria",
+   "no": "BSB",
+   "porte": "grande",
+   "cargasTipos": [
+    "granel"
+   ],
+   "volumeMensalTn": 16500.0
+  },
+  {
+   "id": "EMP-14",
+   "nome": "Planalto Farmacêutica",
+   "tipo": "farmaceutica",
+   "no": "BSB",
+   "porte": "medio",
+   "cargasTipos": [
+    "refrigerada",
+    "seca"
+   ],
+   "volumeMensalTn": 700.0
+  },
+  {
+   "id": "EMP-15",
+   "nome": "Distral Transportes Federais",
+   "tipo": "operador_logistico",
+   "no": "BSB",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 4400.0
+  },
+  {
+   "id": "EMP-16",
+   "nome": "Bandeirantes do Cerrado Agro",
+   "tipo": "agroindustria",
+   "no": "GYN",
+   "porte": "grande",
+   "cargasTipos": [
+    "granel"
+   ],
+   "volumeMensalTn": 14000.0
+  },
+  {
+   "id": "EMP-17",
+   "nome": "Goiás Frigorífico Central",
+   "tipo": "frigorifico",
+   "no": "GYN",
+   "porte": "grande",
+   "cargasTipos": [
+    "refrigerada"
+   ],
+   "volumeMensalTn": 8800.0
+  },
+  {
+   "id": "EMP-18",
+   "nome": "Emas Distribuidora",
+   "tipo": "atacado_varejo",
+   "no": "GYN",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 900.0
+  },
+  {
+   "id": "EMP-19",
+   "nome": "Triângulo Grãos Ltda.",
+   "tipo": "agroindustria",
+   "no": "UDI",
+   "porte": "medio",
+   "cargasTipos": [
+    "granel"
+   ],
+   "volumeMensalTn": 6200.0
+  },
+  {
+   "id": "EMP-20",
+   "nome": "Uberlândia Máquinas e Implementos",
+   "tipo": "automotiva",
+   "no": "UDI",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "superdimensionada"
+   ],
+   "volumeMensalTn": 600.0
+  },
+  {
+   "id": "EMP-21",
+   "nome": "Pecuária Zebu do Triângulo",
+   "tipo": "agropecuaria",
+   "no": "UBA",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca",
+    "refrigerada"
+   ],
+   "volumeMensalTn": 500.0
+  },
+  {
+   "id": "EMP-22",
+   "nome": "Patos Café Beneficiadora",
+   "tipo": "agroindustria",
+   "no": "PTL",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 450.0
+  },
+  {
+   "id": "EMP-23",
+   "nome": "Frutas do Norte de Minas",
+   "tipo": "fruticultura",
+   "no": "MOC",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "refrigerada"
+   ],
+   "volumeMensalTn": 700.0
+  },
+  {
+   "id": "EMP-24",
+   "nome": "Pirapora Solar Agroalimentos",
+   "tipo": "agroindustria",
+   "no": "PMC",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 380.0
+  },
+  {
+   "id": "EMP-25",
+   "nome": "Madeireira Rio Doce",
+   "tipo": "madeireira",
+   "no": "GVL",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 520.0
+  },
+  {
+   "id": "EMP-26",
+   "nome": "Doce Gemas Mineração",
+   "tipo": "mineracao",
+   "no": "GVL",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 300.0
+  },
+  {
+   "id": "EMP-27",
+   "nome": "Mucuri Cacau e Extrativos",
+   "tipo": "agroindustria",
+   "no": "TEO",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 260.0
+  },
+  {
+   "id": "EMP-28",
+   "nome": "Usipra Aços Ipatinga",
+   "tipo": "siderurgia",
+   "no": "IPS",
+   "porte": "grande",
+   "cargasTipos": [
+    "superdimensionada",
+    "granel"
+   ],
+   "volumeMensalTn": 13000.0
+  },
+  {
+   "id": "EMP-29",
+   "nome": "Mantiqueira Têxtil JDF",
+   "tipo": "textil",
+   "no": "JDF",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 950.0
+  },
+  {
+   "id": "EMP-30",
+   "nome": "Zona da Mata Bebidas",
+   "tipo": "bebidas",
+   "no": "JDF",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 640.0
+  },
+  {
+   "id": "EMP-31",
+   "nome": "Divinópolis Confecções",
+   "tipo": "textil",
+   "no": "DIV",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 320.0
+  },
+  {
+   "id": "EMP-32",
+   "nome": "Varginha Café Especial",
+   "tipo": "agroindustria",
+   "no": "VRG",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 410.0
+  },
+  {
+   "id": "EMP-33",
+   "nome": "Alta Mogiana Açúcar e Álcool",
+   "tipo": "agroindustria",
+   "no": "RPT",
+   "porte": "grande",
+   "cargasTipos": [
+    "granel"
+   ],
+   "volumeMensalTn": 17500.0
+  },
+  {
+   "id": "EMP-34",
+   "nome": "Ribeirão Agro Máquinas",
+   "tipo": "automotiva",
+   "no": "RPT",
+   "porte": "pequeno",
+   "cargasTipos": [
+    "superdimensionada"
+   ],
+   "volumeMensalTn": 550.0
+  },
+  {
+   "id": "EMP-35",
+   "nome": "Paraíba Valley Automotivo",
+   "tipo": "automotiva",
+   "no": "SJK",
+   "porte": "grande",
+   "cargasTipos": [
+    "superdimensionada",
+    "seca"
+   ],
+   "volumeMensalTn": 9800.0
+  },
+  {
+   "id": "EMP-36",
+   "nome": "São José Componentes",
+   "tipo": "automotiva",
+   "no": "SJK",
+   "porte": "medio",
+   "cargasTipos": [
+    "seca"
+   ],
+   "volumeMensalTn": 1300.0
+  }
+ ],
+ "frota": [
+  {
+   "id": "CAM-001",
+   "empresaId": "EMP-01",
+   "tipo": "bau",
+   "noSede": "BHZ",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-002",
+   "empresaId": "EMP-01",
+   "tipo": "bau",
+   "noSede": "BHZ",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-003",
+   "empresaId": "EMP-01",
+   "tipo": "bau",
+   "noSede": "BHZ",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-004",
+   "empresaId": "EMP-02",
+   "tipo": "bau",
+   "noSede": "BHZ",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-005",
+   "empresaId": "EMP-02",
+   "tipo": "bau",
+   "noSede": "BHZ",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-006",
+   "empresaId": "EMP-03",
+   "tipo": "porta_conteiner",
+   "noSede": "BHZ",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-007",
+   "empresaId": "EMP-03",
+   "tipo": "porta_conteiner",
+   "noSede": "BHZ",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-008",
+   "empresaId": "EMP-03",
+   "tipo": "porta_conteiner",
+   "noSede": "BHZ",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-009",
+   "empresaId": "EMP-04",
+   "tipo": "bau",
+   "noSede": "SAO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-010",
+   "empresaId": "EMP-04",
+   "tipo": "bau",
+   "noSede": "SAO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-011",
+   "empresaId": "EMP-04",
+   "tipo": "bau",
+   "noSede": "SAO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-012",
+   "empresaId": "EMP-05",
+   "tipo": "tanque",
+   "noSede": "SAO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-013",
+   "empresaId": "EMP-05",
+   "tipo": "tanque",
+   "noSede": "SAO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-014",
+   "empresaId": "EMP-05",
+   "tipo": "tanque",
+   "noSede": "SAO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-015",
+   "empresaId": "EMP-06",
+   "tipo": "bau",
+   "noSede": "SAO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-016",
+   "empresaId": "EMP-06",
+   "tipo": "bau",
+   "noSede": "SAO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-017",
+   "empresaId": "EMP-07",
+   "tipo": "tanque",
+   "noSede": "RIO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-018",
+   "empresaId": "EMP-07",
+   "tipo": "tanque",
+   "noSede": "RIO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-019",
+   "empresaId": "EMP-07",
+   "tipo": "tanque",
+   "noSede": "RIO",
+   "velKmh": 60.0,
+   "pesoMaxTon": 25.0,
+   "taraTon": 13.0,
+   "capCombL": 400.0,
+   "consKmL": 2.4,
+   "autonomiaKm": 960
+  },
+  {
+   "id": "CAM-020",
+   "empresaId": "EMP-08",
+   "tipo": "refrigerado",
+   "noSede": "RIO",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-021",
+   "empresaId": "EMP-08",
+   "tipo": "refrigerado",
+   "noSede": "RIO",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-022",
+   "empresaId": "EMP-09",
+   "tipo": "bau",
+   "noSede": "RIO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-023",
+   "empresaId": "EMP-09",
+   "tipo": "bau",
+   "noSede": "RIO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-024",
+   "empresaId": "EMP-10",
+   "tipo": "bau",
+   "noSede": "VIT",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-025",
+   "empresaId": "EMP-10",
+   "tipo": "bau",
+   "noSede": "VIT",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-026",
+   "empresaId": "EMP-11",
+   "tipo": "bau",
+   "noSede": "VIT",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-027",
+   "empresaId": "EMP-11",
+   "tipo": "bau",
+   "noSede": "VIT",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-028",
+   "empresaId": "EMP-12",
+   "tipo": "graneleiro",
+   "noSede": "VIT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-029",
+   "empresaId": "EMP-12",
+   "tipo": "graneleiro",
+   "noSede": "VIT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-030",
+   "empresaId": "EMP-12",
+   "tipo": "graneleiro",
+   "noSede": "VIT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-031",
+   "empresaId": "EMP-13",
+   "tipo": "graneleiro",
+   "noSede": "BSB",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-032",
+   "empresaId": "EMP-13",
+   "tipo": "graneleiro",
+   "noSede": "BSB",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-033",
+   "empresaId": "EMP-13",
+   "tipo": "graneleiro",
+   "noSede": "BSB",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-034",
+   "empresaId": "EMP-14",
+   "tipo": "refrigerado",
+   "noSede": "BSB",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-035",
+   "empresaId": "EMP-14",
+   "tipo": "refrigerado",
+   "noSede": "BSB",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-036",
+   "empresaId": "EMP-15",
+   "tipo": "bau",
+   "noSede": "BSB",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-037",
+   "empresaId": "EMP-15",
+   "tipo": "bau",
+   "noSede": "BSB",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-038",
+   "empresaId": "EMP-16",
+   "tipo": "graneleiro",
+   "noSede": "GYN",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-039",
+   "empresaId": "EMP-16",
+   "tipo": "graneleiro",
+   "noSede": "GYN",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-040",
+   "empresaId": "EMP-16",
+   "tipo": "graneleiro",
+   "noSede": "GYN",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-041",
+   "empresaId": "EMP-17",
+   "tipo": "refrigerado",
+   "noSede": "GYN",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-042",
+   "empresaId": "EMP-17",
+   "tipo": "refrigerado",
+   "noSede": "GYN",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-043",
+   "empresaId": "EMP-17",
+   "tipo": "refrigerado",
+   "noSede": "GYN",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-044",
+   "empresaId": "EMP-18",
+   "tipo": "bau",
+   "noSede": "GYN",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-045",
+   "empresaId": "EMP-19",
+   "tipo": "graneleiro",
+   "noSede": "UDI",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-046",
+   "empresaId": "EMP-19",
+   "tipo": "graneleiro",
+   "noSede": "UDI",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-047",
+   "empresaId": "EMP-20",
+   "tipo": "porta_conteiner",
+   "noSede": "UDI",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-048",
+   "empresaId": "EMP-21",
+   "tipo": "bau",
+   "noSede": "UBA",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-049",
+   "empresaId": "EMP-22",
+   "tipo": "bau",
+   "noSede": "PTL",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-050",
+   "empresaId": "EMP-23",
+   "tipo": "refrigerado",
+   "noSede": "MOC",
+   "velKmh": 65.0,
+   "pesoMaxTon": 16.0,
+   "taraTon": 12.0,
+   "capCombL": 350.0,
+   "consKmL": 2.6,
+   "autonomiaKm": 910
+  },
+  {
+   "id": "CAM-051",
+   "empresaId": "EMP-24",
+   "tipo": "bau",
+   "noSede": "PMC",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-052",
+   "empresaId": "EMP-25",
+   "tipo": "bau",
+   "noSede": "GVL",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-053",
+   "empresaId": "EMP-26",
+   "tipo": "bau",
+   "noSede": "GVL",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-054",
+   "empresaId": "EMP-27",
+   "tipo": "bau",
+   "noSede": "TEO",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-055",
+   "empresaId": "EMP-28",
+   "tipo": "porta_conteiner",
+   "noSede": "IPS",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-056",
+   "empresaId": "EMP-28",
+   "tipo": "porta_conteiner",
+   "noSede": "IPS",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-057",
+   "empresaId": "EMP-28",
+   "tipo": "porta_conteiner",
+   "noSede": "IPS",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-058",
+   "empresaId": "EMP-29",
+   "tipo": "bau",
+   "noSede": "JDF",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-059",
+   "empresaId": "EMP-29",
+   "tipo": "bau",
+   "noSede": "JDF",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-060",
+   "empresaId": "EMP-30",
+   "tipo": "bau",
+   "noSede": "JDF",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-061",
+   "empresaId": "EMP-31",
+   "tipo": "bau",
+   "noSede": "DIV",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-062",
+   "empresaId": "EMP-32",
+   "tipo": "bau",
+   "noSede": "VRG",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-063",
+   "empresaId": "EMP-33",
+   "tipo": "graneleiro",
+   "noSede": "RPT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-064",
+   "empresaId": "EMP-33",
+   "tipo": "graneleiro",
+   "noSede": "RPT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-065",
+   "empresaId": "EMP-33",
+   "tipo": "graneleiro",
+   "noSede": "RPT",
+   "velKmh": 60.0,
+   "pesoMaxTon": 26.0,
+   "taraTon": 12.0,
+   "capCombL": 400.0,
+   "consKmL": 2.5,
+   "autonomiaKm": 1000
+  },
+  {
+   "id": "CAM-066",
+   "empresaId": "EMP-34",
+   "tipo": "porta_conteiner",
+   "noSede": "RPT",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-067",
+   "empresaId": "EMP-35",
+   "tipo": "porta_conteiner",
+   "noSede": "SJK",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-068",
+   "empresaId": "EMP-35",
+   "tipo": "porta_conteiner",
+   "noSede": "SJK",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-069",
+   "empresaId": "EMP-35",
+   "tipo": "porta_conteiner",
+   "noSede": "SJK",
+   "velKmh": 65.0,
+   "pesoMaxTon": 30.0,
+   "taraTon": 14.0,
+   "capCombL": 450.0,
+   "consKmL": 2.3,
+   "autonomiaKm": 1035
+  },
+  {
+   "id": "CAM-070",
+   "empresaId": "EMP-36",
+   "tipo": "bau",
+   "noSede": "SJK",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  },
+  {
+   "id": "CAM-071",
+   "empresaId": "EMP-36",
+   "tipo": "bau",
+   "noSede": "SJK",
+   "velKmh": 70.0,
+   "pesoMaxTon": 14.0,
+   "taraTon": 9.0,
+   "capCombL": 300.0,
+   "consKmL": 3.0,
+   "autonomiaKm": 900
+  }
+ ],
+ "specs": {
+  "bau": {
+   "vel": 70.0,
+   "pesoMax": 14.0,
+   "tara": 9.0,
+   "cap": 300.0,
+   "cons": 3.0
+  },
+  "sider": {
+   "vel": 70.0,
+   "pesoMax": 20.0,
+   "tara": 10.0,
+   "cap": 350.0,
+   "cons": 2.8
+  },
+  "refrigerado": {
+   "vel": 65.0,
+   "pesoMax": 16.0,
+   "tara": 12.0,
+   "cap": 350.0,
+   "cons": 2.6
+  },
+  "tanque": {
+   "vel": 60.0,
+   "pesoMax": 25.0,
+   "tara": 13.0,
+   "cap": 400.0,
+   "cons": 2.4
+  },
+  "graneleiro": {
+   "vel": 60.0,
+   "pesoMax": 26.0,
+   "tara": 12.0,
+   "cap": 400.0,
+   "cons": 2.5
+  },
+  "porta_conteiner": {
+   "vel": 65.0,
+   "pesoMax": 30.0,
+   "tara": 14.0,
+   "cap": 450.0,
+   "cons": 2.3
+  },
+  "bitrem": {
+   "vel": 65.0,
+   "pesoMax": 40.0,
+   "tara": 20.0,
+   "cap": 800.0,
+   "cons": 2.2
+  }
+ },
+ "compat": {
+  "seca": [
+   "bau",
+   "sider"
+  ],
+  "refrigerada": [
+   "refrigerado"
+  ],
+  "perigosa": [
+   "tanque"
+  ],
+  "granel": [
+   "graneleiro",
+   "bitrem"
+  ],
+  "superdimensionada": [
+   "porta_conteiner",
+   "bitrem"
+  ]
+ }
+}

@@ -1,16 +1,15 @@
 // ============================================================================
-// AgentRouter — Núcleo Java (F1): relógio, scheduler, mundo, protocolo
+// AgentRouter — Núcleo Java (F1/F2): relógio, scheduler, mundo, protocolo
 // ============================================================================
 // Protocolo: JSON Lines no stdin/stdout (uma mensagem por linha).
-//   → comandos do orquestrador:  {"cmd":"ping"|"status"|"tick"|"run"|"pause"...}
-//   ← respostas/eventos:         {"evt":..., dados...}
+//   → comandos: {"cmd":"ping"|"status"|"carregarGrafo"|"rota"|"tick"|...}
+//   ← eventos:  {"evt":..., ...}
 //
-// O relógio é paced (como o sim.js): ticks em passos fixos, durações reais.
-// Esta classe é o esqueleto F1 — o mundo exógeno e o despacho migram do
-// sim.js nas próximas iterações (F2+).
+// F1: relógio paced, scheduler determinístico, mundo exógeno mínimo.
+// F2: grafo real (data/grafo.json via ETL Python), Dijkstra de menor tempo.
 //
-// Build:  javac core/src/main/java/br/ufop/agentrouter/*.java
-// Run:    java -cp core/src/main/java br.ufop.agentrouter.Main
+// Build: javac -d core/build core/src/main/java/br/ufop/agentrouter/*.java
+// Run:   java -cp core/build br.ufop.agentrouter.Main
 // ============================================================================
 
 package br.ufop.agentrouter;
@@ -18,68 +17,18 @@ package br.ufop.agentrouter;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Random;
 
 public final class Main {
-
-    // ------------------------------------------------------------------
-    // Eventos agendados (scheduler — heap por instante de simulação)
-    // ------------------------------------------------------------------
-    static final class Evento implements Comparable<Evento> {
-        final long quandoMs;          // instante na linha do tempo simulada
-        final String tipo;
-        final Map<String, Object> dados;
-
-        Evento(long quandoMs, String tipo, Map<String, Object> dados) {
-            this.quandoMs = quandoMs;
-            this.tipo = tipo;
-            this.dados = dados == null ? Map.of() : dados;
-        }
-
-        @Override public int compareTo(Evento o) {
-            int c = Long.compare(quandoMs, o.quandoMs);
-            return c != 0 ? c : tipo.compareTo(o.tipo);  // determinismo
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Estado do mundo
-    // ------------------------------------------------------------------
-    static final class Mundo {
-        long simMs = 0;                       // relógio simulado (ms desde T0)
-        long velocidade = 60;                 // 1×, 60×, 600×
-        boolean pausado = true;
-        final PriorityQueue<Evento> fila = new PriorityQueue<>();
-        final ArrayDeque<String> log = new ArrayDeque<>();
-        final Random rng;                     // stream única (F2: separa por subsistema)
-        long seed;
-
-        Mundo(long seed) {
-            this.seed = seed;
-            this.rng = new Random(seed);
-        }
-
-        void log(String msg) {
-            log.addFirst(simMs + " | " + msg);
-            while (log.size() > 60) log.removeLast();
-        }
-    }
 
     static final Mundo mundo = new Mundo(424242L);
     static volatile boolean rodando = true;
 
     // ------------------------------------------------------------------
-    // Saída JSON Lines (stdout) — sem dependências externas (F1 mínimo)
+    // Saída JSON Lines (stdout) — sem dependências externas
     // ------------------------------------------------------------------
     static synchronized void emitir(String json) {
         System.out.println(json);
@@ -95,59 +44,8 @@ public final class Main {
     }
 
     // ------------------------------------------------------------------
-    // Comandos aceitos
+    // Parser mínimo (schema conhecido; substitui por lib se necessário)
     // ------------------------------------------------------------------
-    static void processar(String linha) {
-        linha = linha.trim();
-        if (linha.isEmpty()) return;
-        // parser mínimo: extraímos "cmd" e "valor" sem biblioteca JSON (F1).
-        String cmd = extrair(linha, "cmd");
-        switch (cmd == null ? "" : cmd) {
-            case "ping" -> emitir(evento("pong", "\"t\":" + Instant.now().toEpochMilli()));
-            case "status" -> status();
-            case "setSpeed" -> {
-                mundo.velocidade = (long) numero(linha, "valor", 60);
-                mundo.log("velocidade " + mundo.velocidade + "×");
-                status();
-            }
-            case "pause" -> { mundo.pausado = true; mundo.log("pausado"); status(); }
-            case "run" -> { mundo.pausado = false; mundo.log("rodando"); status(); }
-            case "tick" -> {
-                long horas = (long) numero(linha, "valor", 1);
-                avancar(horas * 3_600_000L);
-                status();
-            }
-            case "agendar" -> {
-                // {"cmd":"agendar","tipo":"incidente","emMs":60000,"dados":{...}}
-                String tipo = extrair(linha, "tipo");
-                long em = (long) numero(linha, "emMs", 0);
-                mundo.fila.add(new Evento(mundo.simMs + em, tipo == null ? "generico" : tipo, Map.of()));
-                mundo.log("agendado: " + tipo + " em " + em + " ms");
-            }
-            case "seed" -> {
-                // reinicia o mundo com outra seed (determinismo controlado)
-                long s = (long) numero(linha, "valor", 424242L);
-                mundo.seed = s;
-                mundo.fila.clear(); mundo.log.clear(); mundo.simMs = 0;
-                mundo.rng.setSeed(s);
-                mundo.log("mundo reiniciado com seed " + s);
-                status();
-            }
-            case "sair" -> rodando = false;
-            default -> emitir(evento("erro", "{\"msg\":\"comando desconhecido\"}"));
-        }
-    }
-
-    static void status() {
-        StringBuilder kpis = new StringBuilder();
-        kpis.append("\"simMs\":").append(mundo.simMs)
-            .append(",\"velocidade\":").append(mundo.velocidade)
-            .append(",\"pausado\":").append(mundo.pausado)
-            .append(",\"filaEventos\":").append(mundo.fila.size())
-            .append(",\"seed\":").append(mundo.seed);
-        emitir(evento("status", kpis.toString()));
-    }
-
     static String extrair(String linha, String chave) {
         int i = linha.indexOf("\"" + chave + "\"");
         if (i < 0) return null;
@@ -158,57 +56,127 @@ public final class Main {
         return (a >= 0 && f > a) ? linha.substring(a + 1, f) : null;
     }
 
-    static double numero(String linha, String chave, double def) {
-        int i = linha.indexOf("\"" + chave + "\"");
+    static double num(String s, String chave, double def) {
+        int i = s.indexOf("\"" + chave + "\"");
         if (i < 0) return def;
-        int d = linha.indexOf(':', i + chave.length() + 2);
+        int d = s.indexOf(':', i + chave.length() + 2);
         if (d < 0) return def;
         int f = d + 1;
-        while (f < linha.length() && (Character.isDigit(linha.charAt(f)) || linha.charAt(f) == '-' || linha.charAt(f) == '.' || linha.charAt(f) == 'e')) f++;
-        try { return Double.parseDouble(linha.substring(d + 1, f)); } catch (Exception e) { return def; }
+        while (f < s.length() && s.charAt(f) == ' ') f++;
+        int ini = f;
+        if (f < s.length() && (s.charAt(f) == '-' || s.charAt(f) == '+')) f++;
+        while (f < s.length() && (Character.isDigit(s.charAt(f)) || s.charAt(f) == '.')) f++;
+        if (f == ini) return def;
+        try { return Double.parseDouble(s.substring(ini, f)); } catch (Exception e) { return def; }
     }
 
     // ------------------------------------------------------------------
-    // Avanço do relógio (paced): consome a fila de eventos na ordem
+    // Status
     // ------------------------------------------------------------------
-    static void avancar(long dtMs) {
-        if (mundo.pausado) return;
-        long fim = mundo.simMs + dtMs;
-        while (!mundo.fila.isEmpty() && mundo.fila.peek().quandoMs <= fim) {
-            Evento ev = mundo.fila.poll();
-            mundo.simMs = ev.quandoMs;   // eventos "teleportam" o relógio p/ o instante dele
-            disparar(ev);
-        }
-        mundo.simMs = Math.max(mundo.simMs, fim);
+    static void status() {
+        String corpo = "\"simMs\":" + mundo.simMs +
+            ",\"velocidade\":" + mundo.velocidade +
+            ",\"pausado\":" + mundo.pausado +
+            ",\"nos\":" + mundo.nos.size() +
+            ",\"arestas\":" + mundo.arestas.size() +
+            ",\"incidentes\":" + mundo.incidentes.size() +
+            ",\"cargas\":" + mundo.cargas.size() +
+            ",\"caminhoes\":" + mundo.caminhoes.size() +
+            ",\"seed\":" + mundo.seed;
+        emitir(evento("status", corpo));
     }
 
-    static void disparar(Evento ev) {
-        switch (ev.tipo) {
-            case "incidente" -> {
-                int br = 100 + mundo.rng.nextInt(500);
-                boolean grave = mundo.rng.nextInt(100) < 12;
-                mundo.log("incidente BR-" + br + (grave ? " (grave)" : ""));
-                emitir(evento("incidente",
-                    "\"br\":\"BR-" + br + "\",\"grave\":" + grave +
-                    ",\"penalty\":" + (grave ? 6 : 2.5)));
+    // ------------------------------------------------------------------
+    // Comandos
+    // ------------------------------------------------------------------
+    static void processar(String linha) {
+        linha = linha.trim();
+        if (linha.isEmpty()) return;
+        String cmd = extrair(linha, "cmd");
+        switch (cmd == null ? "" : cmd) {
+            case "ping" -> emitir(evento("pong", "\"t\":" + Instant.now().toEpochMilli()));
+            case "status" -> status();
+
+            case "carregarGrafo" -> {
+                String caminho = extrair(linha, "caminho");
+                try {
+                    mundo.carregarGrafo(Path.of(caminho));
+                    String caminhoEmpresas = extrair(linha, "empresas");
+                    if (caminhoEmpresas != null) Empresas.carregar(Path.of(caminhoEmpresas));
+                    // frota → caminhões do mundo
+                    mundo.caminhoes.clear();
+                    for (var c : Empresas.frota) {
+                        mundo.caminhoes.add(new Mundo.Caminhao(c.id, c.empresaId, c.tipo,
+                                c.noSede, c.velKmh, c.pesoMaxTon, c.capCombL, c.consKmL));
+                    }
+                    emitir(evento("grafo", "\"nos\":" + mundo.nos.size() +
+                        ",\"arestas\":" + mundo.arestas.size() +
+                        ",\"empresas\":" + Empresas.empresas.size() +
+                        ",\"caminhoes\":" + mundo.caminhoes.size()));
+                } catch (Exception e) {
+                    emitir(evento("erro", "{\"msg\":\"" + escapar(String.valueOf(e.getMessage())) + "\"}"));
+                }
             }
-            case "carga" -> {
-                int prio = mundo.rng.nextInt(100);
-                String p = prio < 10 ? "critica" : prio < 40 ? "alta" : "padrao";
-                mundo.log("nova carga (" + p + ")");
-                emitir(evento("carga", "\"prioridade\":\"" + p + "\""));
+
+            case "rota" -> {
+                String de = extrair(linha, "de"), para = extrair(linha, "para");
+                double vel = num(linha, "vel", 70);
+                List<Mundo.Aresta> rota = mundo.dijkstra(de, para, vel);
+                if (rota == null) {
+                    emitir(evento("rota", "{\"de\":\"" + de + "\",\"para\":\"" + para +
+                        "\",\"existe\":false}"));
+                    return;
+                }
+                double km = 0, horas = 0;
+                StringBuilder ids = new StringBuilder("[");
+                for (Mundo.Aresta a : rota) {
+                    km += a.km;
+                    horas += mundo.peso(a, vel);
+                    if (ids.length() > 1) ids.append(",");
+                    ids.append("\"").append(a.id).append("\"");
+                }
+                ids.append("]");
+                emitir(evento("rota", "{\"de\":\"" + de + "\",\"para\":\"" + para +
+                    "\",\"km\":" + (int) km + ",\"horas\":" + (int) horas +
+                    ",\"arestas\":" + ids + ",\"existe\":true}"));
             }
-            default -> mundo.log("evento: " + ev.tipo);
+
+            case "incidenteEm" -> {
+                // injeção de teste: {"cmd":"incidenteEm","edge":"...","grave":true,"horas":4}
+                String edge = extrair(linha, "edge");
+                boolean grave = linha.contains("\"grave\":true");
+                long horas = (long) num(linha, "horas", 4);
+                mundo.forcarIncidente(edge, grave, horas * Mundo.H);
+                emitir(evento("incidenteInjetado", "{\"edge\":\"" + escapar(edge) +
+                    "\",\"grave\":" + grave + "}"));
+            }
+
+            case "setSpeed" -> {
+                mundo.velocidade = (long) num(linha, "valor", 60);
+                status();
+            }
+            case "pause" -> { mundo.pausado = true; status(); }
+            case "run" -> { mundo.pausado = false; status(); }
+            case "tick" -> {
+                long horas = (long) num(linha, "valor", 1);
+                mundo.avancar(horas * Mundo.H);
+                status();
+            }
+            case "seed" -> {
+                long s = (long) num(linha, "valor", 424242);
+                mundo.reiniciar(s);
+                status();
+            }
+            case "sair" -> rodando = false;
+            default -> emitir(evento("erro", "{\"msg\":\"comando desconhecido\"}"));
         }
     }
 
-    // ------------------------------------------------------------------
-    // Loop principal: stdin (comandos) + relógio paced em thread própria
     // ------------------------------------------------------------------
     public static void main(String[] args) throws IOException {
-        emitir(evento("pronto", "\"versao\":\"F1\",\"java\":\"" + System.getProperty("java.version") + "\""));
+        emitir(evento("pronto", "\"versao\":\"F2\",\"java\":\"" + System.getProperty("java.version") + "\""));
 
-        // relógio paced: thread que avança o mundo de acordo com a velocidade
+        // relógio paced em thread própria
         Thread relogio = new Thread(() -> {
             long ultimo = System.nanoTime();
             while (rodando) {
@@ -216,16 +184,14 @@ public final class Main {
                 long agora = System.nanoTime();
                 double dtRealMs = (agora - ultimo) / 1_000_000.0;
                 ultimo = agora;
-                if (!mundo.pausado) {
-                    avancar((long) (dtRealMs * mundo.velocidade));
-                }
+                if (!mundo.pausado) mundo.avancar((long) (dtRealMs * mundo.velocidade));
             }
         }, "relogio-paced");
         relogio.setDaemon(true);
         relogio.start();
 
-        // stdin: um comando JSON por linha
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
+        try (BufferedReader in = new BufferedReader(
+                new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             String linha;
             while (rodando && (linha = in.readLine()) != null) {
                 processar(linha);

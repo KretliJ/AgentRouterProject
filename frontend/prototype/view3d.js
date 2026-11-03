@@ -175,8 +175,8 @@
       cv.height = Math.ceil(fontPx * 1.5);
       const ctx2 = cv.getContext("2d");
       ctx2.font = `${weight} ${fontPx}px system-ui, sans-serif`;
-      ctx2.lineWidth = 8;
-      ctx2.strokeStyle = "rgba(10,12,18,.9)";   // halo escuro p/ contraste
+      ctx2.lineWidth = 4;                       // halo fino: não engole a expressão
+      ctx2.strokeStyle = "rgba(10,12,18,.9)";
       ctx2.strokeText(text, pad, cv.height / 2);
       ctx2.fillStyle = color;
       ctx2.textBaseline = "middle";
@@ -263,8 +263,9 @@
     const truckScale = 90 / 189 * 0.25;   // 25% do tamanho original (pedido do usuário)
 
     // emojis de estado (marcador acima do caminhão):
-    //   viagem=sorrindo, descanso=dormindo, manuseio=pensando, interdição grave=assustado
-    const EMOJI = { viagem: "🙂", descanso: "😴", manuseio: "🤔", grave: "😱" };
+    //   viagem=sorrindo, descanso=dormindo, manuseio=pensando, incidente comum=abajur 😒,
+    //   interdição grave=assustado
+    const EMOJI = { viagem: "🙂", descanso: "😴", manuseio: "🤔", grave: "😱", atraso: "😒" };
     const EMOJI_ESCALA = 60 / 5;      // 1/5 do tamanho anterior
     const EMOJI_ALTURA = 24;          // encostado no teto da cabine
 
@@ -465,11 +466,12 @@
     /** Fonte única da verdade dos incidentes p/ tint/emoji. Chamada pelo
      *  index.html a cada evento "incidents" do sim (e no renderSim). */
     function setIncidents(map) { incidentesAtuais = map; }
+    /** Emoji PRINCIPAL: condição da rota (incidente) ou manuseio. O descanso
+     *  tem emoji SECUNDÁRIO próprio (sempre visível junto, acima). */
     function truckEmoji(t, edgeAtual) {
       const inc = edgeAtual ? incidentesAtuais.get(edgeAtual) : null;
       if (inc?.grave) return EMOJI.grave;
-      if (inc) return EMOJI.manuseio;   // incidente comum: pensando (desvio à frente)
-      if (t.status === "descansando") return EMOJI.descanso;
+      if (inc) return EMOJI.atraso;     // incidente comum: 😒 atraso
       if (t.status === "carregando" || t.status === "descarregando" || t.status === "reabastecendo") return EMOJI.manuseio;
       return EMOJI.viagem;
     }
@@ -477,7 +479,7 @@
       const cv = document.createElement("canvas");
       cv.width = cv.height = 64;
       const ctx = cv.getContext("2d");
-      ctx.font = "48px system-ui, sans-serif";
+      ctx.font = "44px system-ui, sans-serif";   // menor: deixa a expressão respirar
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(txt, 32, 34);
       const tex = new THREE.CanvasTexture(cv);
@@ -500,13 +502,21 @@
           if (!protoReady) { if (!pendingTrucks.includes(t)) pendingTrucks.push(t); continue; }
           obj = t._3d = makeTruckFromProto(t.status);
           if (!obj) continue;
-          // emoji fixo acima do caminhão (texto trocado por estado)
-          const spr = makeEmojiSprite(EMOJI.viagem);
-          spr.position.y = EMOJI_ALTURA;   // encostado no teto da cabine
-          obj.add(spr);
-          t._emoji = spr;
-          // clique no caminhão → seleciona (raycast no ponteiro p/ este grupo)
           obj.userData.truckId = t.id;
+        }
+        // emoji principal + Zz de descanso: criação lazy (cobre também os
+        // caminhões vindos de pendingTrucks, que não passam pelo bloco acima)
+        if (!t._emoji) {
+          t._emoji = makeEmojiSprite(EMOJI.viagem);
+          t._emoji.position.y = EMOJI_ALTURA;
+          t._emojiEmoji = EMOJI.viagem;
+          obj.add(t._emoji);
+        }
+        if (!t._emojiZz) {
+          t._emojiZz = makeEmojiSprite(EMOJI.descanso);
+          t._emojiZz.position.y = EMOJI_ALTURA + EMOJI_ESCALA * 1.1;
+          t._emojiZz.visible = false;
+          obj.add(t._emojiZz);
         }
         obj.visible = true;
         const [wx, wz] = toWorld(xy[0], xy[1], WORLD_W, WORLD_H);
@@ -525,7 +535,7 @@
                   : (truckMatByState[t.status] || truckMatByState.em_viagem);
         obj.traverse((o) => { if (o.isMesh && o.material !== mat && o.material !== undefined) o.material = mat; });
 
-        // emoji por condição (grave só se a interdição for grave)
+        // emoji PRINCIPAL (condição da rota/manuseio)
         if (t._emoji) {
           const want = truckEmoji(t, edgeAtual);
           if (t._emojiEmoji !== want) {
@@ -539,6 +549,18 @@
             t._emoji.material.map.needsUpdate = true;
           }
           t._emoji.visible = true;
+        }
+
+        // emoji SECUNDÁRIO: descanso (zona de sono) — vive junto com o principal
+        if (t.status === "descansando") {
+          if (!t._emojiZz) {
+            t._emojiZz = makeEmojiSprite(EMOJI.descanso);
+            t._emojiZz.position.y = EMOJI_ALTURA + EMOJI_ESCALA * 1.1;  // acima do principal
+            obj.add(t._emojiZz);
+          }
+          t._emojiZz.visible = true;
+        } else if (t._emojiZz) {
+          t._emojiZz.visible = false;
         }
       }
       for (const t of trucks) {
